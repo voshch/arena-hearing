@@ -1,0 +1,18 @@
+[project]
+name = "arena-hearing-workspace"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "arena-hearing",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+arena-hearing = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "arena_hearing",
+]

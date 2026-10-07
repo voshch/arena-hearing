@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package format="3">
+  <name>arena_hearing</name>
+  <version>0.0.0</version>
+  <description>Arena robot hearing: srp and SELDnet front-ends on any robot audio array, belief grid, speed-filter policy and the Nav2 speed-filter overlay.</description>
+  <maintainer email="dev@voshch.dev">voshch</maintainer>
+  <license>TODO</license>
+
+  <depend>arena_robots_msgs</depend>
+  <depend>arena_runtime_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav2_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>task_generator_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>arena_rclpy_mixins</exec_depend>
+  <exec_depend>arena_robots</exec_depend>
+  <exec_depend>arena_runtime</exec_depend>
+  <exec_depend>arena_simulation_setup</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>rcl_interfaces</test_depend>
+  <test_depend>tf2_msgs</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
