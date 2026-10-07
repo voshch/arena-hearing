@@ -3,6 +3,7 @@
 import launch
 import launch.actions
 from arena_rclpy_mixins.param_groups import Param, declare_launch_arguments
+from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from launch_ros.actions import Node
 
 from arena_hearing.belief_grid import NOMINAL_EVENT_RATE_HZ
@@ -29,6 +30,7 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
     if frontend is Frontend.SRP:
         derived["belief.kinds"] = ["onset"]
     forwarded: dict[str, object] = {}
+    detect_kinds = sorted(name for name, kind in SoundLibrary.default().kinds().items() if kind.detect)
     for key, raw in configs.items():
         if not key.startswith(_PREFIX) or key == _POLICY_KEY or not raw:
             continue
@@ -36,6 +38,8 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
         param = Param[float](name, 0.0) if name.startswith(BeliefGroup.EMISSION_DB_PREFIX) else params.get(name)
         if param is None:
             raise ValueError(f"{key} is not a hearing node parameter")
+        if name.startswith(BeliefGroup.EMISSION_DB_PREFIX) and name.removeprefix(BeliefGroup.EMISSION_DB_PREFIX) not in detect_kinds:
+            raise ValueError(f"{key} names no detect kind, expected one of {detect_kinds}")
         forwarded[name] = param.coerce(raw)
     hearing_params = {"use_sim_time": True, **derived, **forwarded}
     env_ns = "/" + configs["env.ns"].strip("/")

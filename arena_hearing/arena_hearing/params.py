@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import functools
+import math
 import typing
 from collections.abc import Mapping
 
@@ -45,6 +46,13 @@ class HearingGroup(ParamGroup):
     TG_NODE = Param[str]("hearing.tg_node", "task_generator_node")
 
 
+def _level(value: object) -> float:
+    result = float(typing.cast(float, value))
+    if math.isinf(result):
+        raise ValueError(f"{value!r} is not a level")
+    return result
+
+
 class BeliefGroup(ParamGroup):
     MARKERS_ENABLED = Param[bool]("belief.markers.enabled", True)
     MARKERS_RANGE_M = Param[float]("belief.markers.range_m", 4.0, parse=positive)
@@ -72,8 +80,8 @@ class BeliefGroup(ParamGroup):
     EMISSION_DB_PREFIX: typing.ClassVar[str] = "belief.emission_db."
 
     def emission_db(self, levels: Mapping[str, float]) -> dict[str, ROSParamT[float]]:
-        """Declare belief.emission_db.<kind> per kind, defaulting to the level of the kind's default asset."""
-        return {kind: self._server.ROSParam(f"{self.EMISSION_DB_PREFIX}{kind}", float(level), parse=finite) for kind, level in levels.items()}
+        """Declare belief.emission_db.<kind> per kind, defaulting to the level of the kind's default asset, NaN for unknown."""
+        return {kind: self._server.ROSParam(f"{self.EMISSION_DB_PREFIX}{kind}", float(level), parse=_level) for kind, level in levels.items()}
 
 
 class PolicyGroup(ParamGroup):

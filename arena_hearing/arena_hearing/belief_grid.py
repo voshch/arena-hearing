@@ -87,8 +87,8 @@ NOMINAL_EVENT_RATE_HZ: dict[str, float] = {
 
 
 def emission_levels(library: SoundLibrary) -> dict[str, float]:
-    """Emission level per detect kind, the level of the kind's default asset."""
-    return {name: float(library.default_asset(name).level_db) for name, kind in library.kinds().items() if kind.detect and kind.default_asset}
+    """Emission level per detect kind, the level of the kind's default asset, NaN for a kind without one."""
+    return {name: float(library.default_asset(name).level_db) if kind.default_asset else math.nan for name, kind in library.kinds().items() if kind.detect}
 
 
 @attrs.frozen(kw_only=True)

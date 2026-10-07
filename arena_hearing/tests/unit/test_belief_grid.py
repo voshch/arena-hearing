@@ -185,6 +185,15 @@ def test_add_event_paints_the_same_mass_as_the_full_disc(seed: int) -> None:
 
 
 @pytest.mark.usefixtures("default_sounds")
+def test_emission_levels_cover_every_detect_kind_and_are_nan_without_a_default_asset() -> None:
+    library = SoundLibrary.default()
+    levels = emission_levels(library)
+    assert set(levels) == {name for name, kind in library.kinds().items() if kind.detect}
+    assert math.isnan(levels["onset"])
+    assert math.isfinite(levels["footstep"])
+
+
+@pytest.mark.usefixtures("default_sounds")
 def test_level_range_inverts_the_spreading_law_against_the_kind_emission_level() -> None:
     grid = _grid(level_range_enabled=True, reference_distance_m=1.0, min_range_m=0.5, max_range_m=15.0)
     emission = grid.config.emission_for("footstep")
