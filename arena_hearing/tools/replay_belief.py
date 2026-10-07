@@ -182,7 +182,7 @@ def label_detections(episode: Episode, library: SoundLibrary) -> list[Detection]
         if not row.get("pedestrian_sound_active") or bearing is None:
             continue
         candidates = [name for name in _types(row, library) if name in detect]
-        kind = max(candidates, key=lambda name: levels.get(name, -math.inf)) if candidates else ""
+        kind = max(candidates, key=lambda name: level if math.isfinite(level := levels.get(name, math.nan)) else -math.inf) if candidates else ""
         key = (row["frame"], kind, float(bearing))
         if key in seen:
             continue
@@ -221,7 +221,7 @@ def fit_level_offset(episodes: Sequence[Episode], library: SoundLibrary) -> floa
             by_frame.setdefault(row["frame"], []).append(row)
         level = frame_level_db(episode.raw_wav, max(by_frame) + 1)
         for frame, group in by_frame.items():
-            emissions = [levels[name] for name in _types(group[0], library) if name in levels]
+            emissions = [levels[name] for name in _types(group[0], library) if math.isfinite(levels.get(name, math.nan))]
             if not emissions or not np.isfinite(level[frame]):
                 continue
             distance = float(np.median([float(row["range_m"]) for row in group]))
