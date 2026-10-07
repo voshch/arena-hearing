@@ -230,7 +230,7 @@ class BeliefNode(ArenaMixinNode):
             return
         kinds = self.conf.Belief.KINDS.value
         kind = msg.kind.strip().lower()
-        if kinds and kind not in kinds:
+        if kinds and "all" not in kinds and kind not in kinds:
             return
         azimuth = float(msg.azimuth_rad)
         if not math.isfinite(azimuth):

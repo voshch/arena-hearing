@@ -157,13 +157,13 @@ def _publish_tf(rig: _Rig, child: str, x: float, y: float, yaw: float = 0.0) -> 
     pub.publish(TFMessage(transforms=[transform]))
 
 
-def _detection(frame_id: str, azimuth_rad: float, level_db: float = 50.0):
+def _detection(frame_id: str, azimuth_rad: float, level_db: float = 50.0, kind: str = "footstep"):
     from arena_robots_msgs.msg import SoundDetection
 
     msg = SoundDetection()
     msg.header.frame_id = frame_id
     msg.frontend = "bus"
-    msg.kind = "footstep"
+    msg.kind = kind
     msg.azimuth_rad = azimuth_rad
     msg.elevation_rad = math.nan
     msg.level_db = level_db
@@ -240,6 +240,17 @@ def test_belief_node_rotates_an_array_frame_azimuth_by_the_frame_yaw(tmp_path: P
         origin_row = int(round((0.0 - info.origin.position.y) / info.resolution))
         assert grid[:origin_row, :].sum() == 0
         assert grid[origin_row:, :].sum() > 0
+
+
+@pytest.mark.usefixtures("default_sounds")
+def test_belief_node_with_all_kinds_paints_a_kind_outside_the_defaults(tmp_path: Path) -> None:
+    with _rig("belief_node", _belief_params(**{"belief.kinds": ["all"]}), tmp_path) as rig:
+        _publish_fleet(rig, ("r0",))
+        _publish_tf(rig, _base_frame(rig, "r0"), 0.0, 0.0)
+        grids = _grids(rig, "r0")
+        pub = _detection_publisher(rig, "r0")
+        pub.publish(_detection("map", 0.0, kind="alarm"))
+        rig.spin_until(lambda: bool(grids) and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the alarm detection painted")
 
 
 @pytest.mark.usefixtures("default_sounds")
