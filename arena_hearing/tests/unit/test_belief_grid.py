@@ -11,7 +11,7 @@ from arena_rclpy_mixins.param_groups import configure
 from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from scipy.ndimage import maximum_filter1d
 
-from arena_hearing.belief_grid import SPEED_MASK_NO_LIMIT, BeliefConfig, BeliefGrid, dilate_belief, emission_levels, speed_mask_from_belief
+from arena_hearing.belief_grid import SPEED_MASK_NO_LIMIT, BeliefConfig, BeliefGrid, dilate_belief, effective_emission, emission_levels, speed_mask_from_belief
 from arena_hearing.params import BeliefGroup, PolicyGroup
 from arena_hearing.policy import PolicyConfig
 
@@ -191,6 +191,19 @@ def test_emission_levels_cover_every_detect_kind_and_are_nan_without_a_default_a
     assert set(levels) == {name for name, kind in library.kinds().items() if kind.detect}
     assert math.isnan(levels["onset"])
     assert math.isfinite(levels["footstep"])
+
+
+def test_world_emission_level_replaces_the_default_unless_the_parameter_was_set() -> None:
+    declared = {"footstep": 45.0, "speech": 60.0, "onset": math.nan}
+    values = {"footstep": 45.0, "speech": 52.0, "onset": math.nan}
+    world = {"footstep": 50.0, "speech": 60.0, "onset": math.nan, "chime": 55.0}
+
+    effective = effective_emission(declared, values, world)
+
+    assert effective["footstep"] == 50.0
+    assert effective["speech"] == 52.0
+    assert math.isnan(effective["onset"])
+    assert effective["chime"] == 55.0
 
 
 @pytest.mark.usefixtures("default_sounds")

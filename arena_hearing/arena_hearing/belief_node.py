@@ -25,7 +25,9 @@ from __future__ import annotations
 import array
 import functools
 import math
+import subprocess
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import attrs
 import numpy as np
@@ -44,11 +46,11 @@ from nav_msgs.msg import MapMetaData, OccupancyGrid
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.time import Time
-from std_msgs.msg import Bool, ColorRGBA
+from std_msgs.msg import Bool, ColorRGBA, String
 from visualization_msgs.msg import Marker, MarkerArray
 
-from arena_hearing.belief_grid import BeliefConfig, BeliefGrid, emission_levels
-from arena_hearing.constants import BELIEF_GRID, BELIEF_WEDGES, MAP, STATE_RESETTING, detections
+from arena_hearing.belief_grid import BeliefConfig, BeliefGrid, effective_emission, emission_levels
+from arena_hearing.constants import BELIEF_GRID, BELIEF_WEDGES, MAP, STATE_RESETTING, STATE_WORLD, detections
 from arena_hearing.fleet import FleetRobots
 from arena_hearing.params import Configuration
 
@@ -106,9 +108,13 @@ class BeliefNode(ArenaMixinNode):
         super().__init__("hearing_belief")
         self.conf = Configuration(self)
         self._map_conf = self.conf.Map
-        library = SoundLibrary.default()
-        self._kinds = library.kinds()
-        self._emission_db = self.conf.Belief.emission_db(emission_levels(library))
+        self._library = SoundLibrary.default()
+        self._kinds = self._library.kinds()
+        levels = emission_levels(self._library)
+        self._emission_db = self.conf.Belief.emission_db(levels)
+        self._declared_emission = dict(levels)
+        self._world_emission = dict(levels)
+        self._loader = ThreadPoolExecutor(max_workers=1, thread_name_prefix="belief_world")
         self._config = self._belief_config()
         self._layout: _Layout | None = None
         self._map_info: MapMetaData | None = None
@@ -125,13 +131,30 @@ class BeliefNode(ArenaMixinNode):
         self._rate = self.conf.Belief.PUBLISH_RATE_HZ.value
         self.create_subscription(OccupancyGrid, f"{self._tg}/{MAP}", self._cb_map, qos.latched())
         self.create_subscription(Bool, f"{self._tg}/{STATE_RESETTING}", self._cb_reset, qos.latched())
+        self.create_subscription(String, f"{self._tg}/{STATE_WORLD}", self._cb_world, qos.latched(1))
         self._robots = FleetRobots(self, self._tg, start=self._start, stop=self._stop, channel=self._channel)
         self.create_timer(1.0 / self._rate, self._on_timer)
         self.get_logger().info(f"hearing_belief up: frontend {self._frontend}, kinds {list(self.conf.Belief.KINDS.value)}")
 
     def destroy_node(self) -> bool:
+        self._loader.shutdown(wait=False, cancel_futures=True)
         self._tf_listener.close()
         return super().destroy_node()
+
+    def _cb_world(self, msg: String) -> None:
+        world = str(msg.data).strip()
+        if world:
+            self._loader.submit(self._use_world, world)
+
+    def _use_world(self, world: str) -> None:
+        try:
+            self._library.use_world_named(world)
+            levels = emission_levels(self._library)
+        except (OSError, LookupError, ValueError, subprocess.SubprocessError) as exc:
+            self.get_logger().error(f"sound kinds of world {world!r} unavailable: {exc!r}")
+            return
+        self._kinds = self._library.kinds()
+        self._world_emission = levels
 
     def _start(self, binding: RobotBinding) -> _Robot:
         if binding.error:
@@ -156,7 +179,8 @@ class BeliefNode(ArenaMixinNode):
         return LockstepChannel(name=f"belief/{robot.binding.name}", topic=robot.pub_belief.topic_name, type="nav_msgs/msg/OccupancyGrid", period_s=1.1 / self._rate, hard=True)
 
     def _belief_config(self) -> BeliefConfig:
-        return configure(BeliefConfig, self.conf.Belief, emission_db={kind: param.value for kind, param in self._emission_db.items()})
+        values = {kind: param.value for kind, param in self._emission_db.items()}
+        return configure(BeliefConfig, self.conf.Belief, emission_db=effective_emission(self._declared_emission, values, self._world_emission))
 
     def _new_grid(self) -> BeliefGrid | None:
         layout = self._layout

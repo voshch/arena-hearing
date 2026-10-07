@@ -4,6 +4,7 @@ from __future__ import annotations
 
 STATE_ROBOTS = "state/robots"
 STATE_RESETTING = "state/resetting"
+STATE_WORLD = "state/world"
 MAP = "map"
 
 BELIEF_GRID = "hearing/belief_grid"
