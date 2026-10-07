@@ -44,6 +44,24 @@ class AudioReplay(Node):
         self.sent = 0
         self.get_logger().info(f"{wav}: {channels} channels at {self.fs} Hz on {self.pub.topic_name!r}, array {array.name if array is not None else 'undeclared'}")
 
+    def frame(self, chunk: np.ndarray) -> AudioFrame:
+        """One block as an AudioFrame stamped now, carrying the declared array."""
+        msg = AudioFrame()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.frame_id
+        msg.sample_rate = int(self.fs)
+        msg.channel_count = int(chunk.shape[1])
+        msg.frame_count = int(chunk.shape[0])
+        msg.encoding = "32FC1"
+        msg.interleaved = True
+        if self.array is not None:
+            msg.channel_names = list(self.array.channel_names)
+            msg.microphone_positions = [Point(x=mic.position_m[0], y=mic.position_m[1], z=mic.position_m[2]) for mic in self.array.mics]
+            msg.microphone_yaw_rad = [mic.yaw_rad for mic in self.array.mics]
+            msg.sensitivity_dbfs_at_94_dbspl = float(self.array.sensitivity_dbfs_at_94_dbspl)
+        msg.data = chunk.reshape(-1).tolist()
+        return msg
+
     def run(self) -> None:
         period = self.block / self.fs
         next_at = time.monotonic()
@@ -54,20 +72,7 @@ class AudioReplay(Node):
                 self.cursor = 0
             chunk = self.audio[self.cursor : self.cursor + self.block]
             self.cursor += self.block
-            msg = AudioFrame()
-            msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = self.frame_id
-            msg.sample_rate = int(self.fs)
-            msg.channel_count = int(chunk.shape[1])
-            msg.frame_count = int(chunk.shape[0])
-            msg.encoding = "32FC1"
-            msg.interleaved = True
-            if self.array is not None:
-                msg.channel_names = list(self.array.channel_names)
-                msg.microphone_positions = [Point(x=mic.position_m[0], y=mic.position_m[1], z=mic.position_m[2]) for mic in self.array.mics]
-                msg.microphone_yaw_rad = [mic.yaw_rad for mic in self.array.mics]
-            msg.data = chunk.reshape(-1).tolist()
-            self.pub.publish(msg)
+            self.pub.publish(self.frame(chunk))
             self.sent += 1
             rclpy.spin_once(self, timeout_sec=0.0)
             if self.speed > 0.0:
