@@ -188,10 +188,7 @@ class SeldFrontendNode(ArenaMixinNode):
 
     def _diag(self) -> None:
         for robot in self._robots:
-            self.get_logger().debug(
-                f"{robot.name}: frames {robot.n_frames} detections {robot.n_events} audio samples {robot.stream.samples_seen} gaps {robot.timeline.gaps} rewinds {robot.timeline.rewinds} "
-                f"bad frames {robot.bad_frames} refused {robot.refused} no-bearing fits {robot.n_no_bearing}"
-            )
+            self.get_logger().debug(f"{robot.name}: frames {robot.n_frames} detections {robot.n_events} audio samples {robot.stream.samples_seen} gaps {robot.timeline.gaps} rewinds {robot.timeline.rewinds} bad frames {robot.bad_frames} refused {robot.refused} no-bearing fits {robot.n_no_bearing}")
 
 
 def main() -> None:

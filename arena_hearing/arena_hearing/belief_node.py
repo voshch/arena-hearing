@@ -210,14 +210,7 @@ class BeliefNode(ArenaMixinNode):
             return
         info = msg.info
         last = self._map_info
-        if (
-            last is not None
-            and info.width == last.width
-            and info.height == last.height
-            and abs(info.resolution - last.resolution) < 1e-9
-            and abs(info.origin.position.x - last.origin.position.x) < 1e-9
-            and abs(info.origin.position.y - last.origin.position.y) < 1e-9
-        ):
+        if last is not None and info.width == last.width and info.height == last.height and abs(info.resolution - last.resolution) < 1e-9 and abs(info.origin.position.x - last.origin.position.x) < 1e-9 and abs(info.origin.position.y - last.origin.position.y) < 1e-9:
             return
         self._map_info = info
         data = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width)

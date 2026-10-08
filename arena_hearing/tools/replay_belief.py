@@ -209,11 +209,7 @@ def fit_level_offset(episodes: Sequence[Episode], library: SoundLibrary) -> floa
     levels = emission_levels(library)
     values: list[float] = []
     for episode in episodes:
-        rows = [
-            row
-            for row in _rows(episode)
-            if row.get("pedestrian_sound_active") and row.get("active_pedestrian_count") == 1 and row.get("line_of_sight") and (row.get("range_m") or 0.0) > 1.0 and not row.get("motor_active")
-        ]
+        rows = [row for row in _rows(episode) if row.get("pedestrian_sound_active") and row.get("active_pedestrian_count") == 1 and row.get("line_of_sight") and (row.get("range_m") or 0.0) > 1.0 and not row.get("motor_active")]
         if len(rows) < MIN_CALIBRATION_ROWS:
             continue
         by_frame: dict[int, list[dict]] = {}
@@ -433,10 +429,7 @@ def _summary(result: ReplayResult, threshold: float) -> None:
         dist = np.array([s.peak_dist_m for s in sub])
         bearing = np.array([s.bearing_err_deg for s in sub])
         belief = np.array([s.belief_at_truth for s in sub])
-        print(
-            f"  {name:12s} {len(sub):5d} {100 * float((dist <= result.tolerance_m).mean()):6.1f}% {float(np.median(dist)):7.2f}m "
-            f"{100 * float((bearing <= BEARING_TOLERANCE_DEG).mean()):8.1f}% {float(np.median(bearing)):8.1f}d {float(np.nanmean(belief)):11.2f} {100 * float((belief > threshold).mean()):5.1f}%"
-        )
+        print(f"  {name:12s} {len(sub):5d} {100 * float((dist <= result.tolerance_m).mean()):6.1f}% {float(np.median(dist)):7.2f}m {100 * float((bearing <= BEARING_TOLERANCE_DEG).mean()):8.1f}% {float(np.median(bearing)):8.1f}d {float(np.nanmean(belief)):11.2f} {100 * float((belief > threshold).mean()):5.1f}%")
 
 
 def main(argv: list[str] | None = None) -> int:
