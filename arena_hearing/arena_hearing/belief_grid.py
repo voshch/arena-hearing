@@ -92,7 +92,6 @@ def emission_levels(library: SoundLibrary) -> dict[str, float]:
     return {name: float(library.default_asset(name).level_db) if kind.default_asset else math.nan for name, kind in library.kinds().items() if kind.detect}
 
 
-
 def effective_emission(declared: Mapping[str, float], values: Mapping[str, float], levels: Mapping[str, float]) -> dict[str, float]:
     """The world's level per kind, a parameter set away from its declared default winning."""
     changed = {kind: value for kind, value in values.items() if not _same_level(value, declared.get(kind, math.nan))}
