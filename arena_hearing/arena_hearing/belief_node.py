@@ -222,8 +222,8 @@ class BeliefNode(ArenaMixinNode):
             w = max(round(info.width * info.resolution / res), 1)
             h = max(round(info.height * info.resolution / res), 1)
             scale = res / info.resolution
-            rows = np.minimum((np.arange(h) * scale).astype(int), info.height - 1)
-            cols = np.minimum((np.arange(w) * scale).astype(int), info.width - 1)
+            rows = np.minimum(np.floor(np.arange(h) * scale + 1e-6).astype(int), info.height - 1)
+            cols = np.minimum(np.floor(np.arange(w) * scale + 1e-6).astype(int), info.width - 1)
             self._layout = _Layout(info.origin.position.x, info.origin.position.y, res, w, h, native_free[rows][:, cols])
         for robot in self._robots:
             robot.grid = self._new_grid()
