@@ -42,7 +42,7 @@ class DiagnosticsGroup(ParamGroup):
 
 
 class HearingGroup(ParamGroup):
-    FRONTEND = Param[Frontend]("hearing.frontend", Frontend.BUS.value, parse=Frontend)
+    FRONTEND = Param[Frontend]("hearing.frontend", Frontend.BUS, parse=Frontend)
     TG_NODE = Param[str]("hearing.tg_node", "task_generator_node")
 
 
@@ -60,8 +60,8 @@ class BeliefGroup(ParamGroup):
     PUBLISH_RATE_HZ = Param[float]("belief.publish_rate_hz", 5.0, parse=positive)
     RESOLUTION_M = Param[float]("belief.resolution_m", 0.0, parse=non_negative)
     STANDALONE_ENABLED = Param[bool]("belief.standalone.enabled", False)
-    STANDALONE_ORIGIN_M = Param[tuple[float, ...]]("belief.standalone.origin_m", [-10.0, -10.0], parse=floats)
-    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", [20.0, 20.0], parse=floats)
+    STANDALONE_ORIGIN_M = Param[tuple[float, ...]]("belief.standalone.origin_m", (-10.0, -10.0), parse=floats)
+    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", (20.0, 20.0), parse=floats)
     WEDGE_DEG = Param[float]("belief.wedge_deg", 10.0, parse=positive)
     MIN_HALF_WIDTH_M = Param[float]("belief.min_half_width_m", 0.3, parse=non_negative)
     TAU_S = Param[float]("belief.tau_s", 2.0, parse=positive)
@@ -74,7 +74,7 @@ class BeliefGroup(ParamGroup):
     EVENT_MASS = Param[float]("belief.event_mass", 1.0, parse=positive)
     EVENT_RATE_HZ = Param[float]("belief.event_rate_hz", 2.0, parse=positive)
     MASS_FULL_SCALE = Param[float]("belief.mass_full_scale", 0.0, parse=non_negative)
-    KINDS = Param[tuple[str, ...]]("belief.kinds", ["footstep", "speech"], parse=names)
+    KINDS = Param[tuple[str, ...]]("belief.kinds", ("footstep", "speech"), parse=names)
     MIN_LEVEL_DB = Param[float]("belief.min_level_db", -1e9, parse=finite)
 
     EMISSION_DB_PREFIX: typing.ClassVar[str] = "belief.emission_db."
@@ -123,7 +123,7 @@ class SeldGroup(ParamGroup):
     TORCH_THREADS = Param[int]("seld.torch_threads", 2, parse=count)
     DET_THRESHOLD = Param[float]("seld.det_threshold", 0.5, parse=within(0.0, 1.0))
     LOOKAHEAD_FRAMES = Param[int]("seld.lookahead_frames", 5, parse=count, description="SELDnet front-end label frames of future context, 100 ms each.")
-    BEARING_SOURCE = Param[BearingSource]("seld.bearing_source", BearingSource.GCC.value, parse=BearingSource, description="SELDnet front-end bearing, gcc fits GCC-PHAT over the array, seld takes the model azimuth.")
+    BEARING_SOURCE = Param[BearingSource]("seld.bearing_source", BearingSource.GCC, parse=BearingSource, description="SELDnet front-end bearing, gcc fits GCC-PHAT over the array, seld takes the model azimuth.")
 
 
 class SrpGroup(ParamGroup):
