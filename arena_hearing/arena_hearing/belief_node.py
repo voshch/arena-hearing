@@ -136,10 +136,10 @@ class BeliefNode(ArenaMixinNode):
         self.create_timer(1.0 / self._rate, self._on_timer)
         self.get_logger().info(f"hearing_belief up: frontend {self._frontend}, kinds {list(self.conf.Belief.KINDS.value)}")
 
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         self._loader.shutdown(wait=False, cancel_futures=True)
         self._tf_listener.close()
-        return super().destroy_node()
+        super().destroy_node()
 
     def _cb_world(self, msg: String) -> None:
         world = str(msg.data).strip()
@@ -343,7 +343,7 @@ class BeliefNode(ArenaMixinNode):
             m.ns = "hearing_wedge"
             m.id = wid
             m.action = Marker.DELETE
-            arr.markers.append(m)
+            arr.markers.append(m)  # pyright: ignore[reportAttributeAccessIssue]
         robot.retired.clear()
         for wedge in robot.wedges:
             rng = min(wedge.range_m, draw_range)
@@ -361,10 +361,10 @@ class BeliefNode(ArenaMixinNode):
             for k in range(WEDGE_STEPS):
                 a0 = wedge.theta - half + 2.0 * half * k / WEDGE_STEPS
                 a1 = wedge.theta - half + 2.0 * half * (k + 1) / WEDGE_STEPS
-                m.points.append(Point(x=wedge.x, y=wedge.y, z=0.05))
-                m.points.append(Point(x=wedge.x + rng * math.cos(a0), y=wedge.y + rng * math.sin(a0), z=0.05))
-                m.points.append(Point(x=wedge.x + rng * math.cos(a1), y=wedge.y + rng * math.sin(a1), z=0.05))
-            arr.markers.append(m)
+                m.points.append(Point(x=wedge.x, y=wedge.y, z=0.05))  # pyright: ignore[reportAttributeAccessIssue]
+                m.points.append(Point(x=wedge.x + rng * math.cos(a0), y=wedge.y + rng * math.sin(a0), z=0.05))  # pyright: ignore[reportAttributeAccessIssue]
+                m.points.append(Point(x=wedge.x + rng * math.cos(a1), y=wedge.y + rng * math.sin(a1), z=0.05))  # pyright: ignore[reportAttributeAccessIssue]
+            arr.markers.append(m)  # pyright: ignore[reportAttributeAccessIssue]
         return arr
 
 

@@ -105,9 +105,9 @@ class PolicyNode(ArenaMixinNode):
         self.create_timer(1.0 / self._rate, self._on_timer)
         self.get_logger().info(f"hearing_policy up: listen={p.LISTEN_ENABLED.value} yield={p.YIELD_ENABLED.value}")
 
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         self._tf_listener.close()
-        return super().destroy_node()
+        super().destroy_node()
 
     def _start(self, binding: RobotBinding) -> _Robot:
         if binding.error:
@@ -332,7 +332,7 @@ class PolicyNode(ArenaMixinNode):
                 m.color = color
                 m.pose.orientation.w = 1.0
                 m.points = [Point(x=float(x), y=float(y), z=0.08) for x, y in pts]
-            arr.markers.append(m)
+            arr.markers.append(m)  # pyright: ignore[reportAttributeAccessIssue]
         robot.pub_markers.publish(lambda: arr)
 
 
