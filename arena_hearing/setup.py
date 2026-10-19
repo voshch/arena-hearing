@@ -39,6 +39,9 @@ setup(
             'hearing_srp_frontend = arena_hearing.srp_frontend_node:main',
             'hearing_setup = arena_hearing.weights:main',
             'hearing_audio_replay = arena_hearing.audio_replay:main',
-        ]
+        ],
+        'arena_mcp.domains': [
+            'hearing = arena_hearing.mcp:domain',
+        ],
     },
 )

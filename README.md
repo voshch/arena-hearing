@@ -26,7 +26,8 @@ arena_hearing/                  this repository
     |   |-- policy.py corners.py policy_node.py speed-filter policy and its node
     |   |-- doa.py onset.py timeline.py srp_frontend_node.py   srp front-end
     |   |-- seld.py dcase.py weights.py seld_frontend_node.py  seld front-end
-    |   `-- audio_replay.py     wav replay as AudioFrame
+    |   |-- audio_replay.py     wav replay as AudioFrame
+    |   `-- mcp.py              the hearing MCP domain
     |-- config/                 nav2_overlay.yaml, weights.yaml
     |-- launch/                 hearing.launch.py
     `-- tools/                  source-only scripts, not installed: belief replay
@@ -199,15 +200,27 @@ The front-end fetches them on first use when they are missing. The model,
 SALSA-Lite features and multi-ACCDOA decode are in `dcase.py`, adapted from
 the DCASE 2023 SELD baseline (MIT).
 
+## MCP domain
+
+`arena_hearing.mcp` contributes the `hearing` domain to the Arena MCP server:
+a robot's `SoundDetection`s per front-end over a time window, its belief grid
+as a summary and an image, and its policy state, `CostmapFilterInfo` and speed
+mask as a summary and an image. `python3 -m arena_mcp ls hearing` lists its
+tools. Every tool takes `env_id` and `robot`, either may be omitted while
+there is only one. The detections tool subscribes on its first call and waits
+up to `window_s` while it collects.
+
 ## Tests
 
 ```bash
 python3 -m pytest arena_hearing/tests/unit -q
 python3 -m pytest arena_hearing/tests/ros -q
+python3 -m pytest arena_hearing/tests/mcp -q
 ```
 
 The ROS tests run the belief and policy nodes as subprocesses against a
-synthetic fleet, map and TF, and need a sourced ROS 2 environment.
+synthetic fleet, map and TF, and need a sourced ROS 2 environment. The MCP
+tests call the hearing tools against the same subprocesses.
 
 ## Configuration
 
