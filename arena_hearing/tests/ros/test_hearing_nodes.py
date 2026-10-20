@@ -249,8 +249,7 @@ def test_belief_node_with_all_kinds_paints_a_kind_outside_the_defaults(tmp_path:
         _publish_tf(rig, _base_frame(rig, "r0"), 0.0, 0.0)
         grids = _grids(rig, "r0")
         pub = _detection_publisher(rig, "r0")
-        pub.publish(_detection("map", 0.0, kind="alarm"))
-        rig.spin_until(lambda: bool(grids) and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the alarm detection painted")
+        rig.spin_until(lambda: bool(grids) and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the alarm detection painted", tick=lambda: pub.publish(_detection("map", 0.0, kind="alarm")))
 
 
 @pytest.mark.usefixtures("default_sounds")
@@ -311,14 +310,29 @@ def test_belief_node_wedge_markers_add_then_expire(tmp_path: Path) -> None:
         received: list[MarkerArray] = []
         rig.node.create_subscription(MarkerArray, f"{rig.tg}/r0/hearing/belief_wedges", received.append, qos.reliable(10))
         pub = _detection_publisher(rig, "r0")
-        pub.publish(_detection("map", 0.0))
-        pub.publish(_detection("map", 0.3))
+        added_ids: set[int] = set()
+        deleted: set[int] = set()
+        due = [0.0]
 
-        def added() -> set[int]:
-            return {m.id for m in received[-1].markers if m.action == Marker.ADD} if received else set()
+        def collect() -> None:
+            for array in received:
+                added_ids.update(m.id for m in array.markers if m.action == Marker.ADD)
+                deleted.update(m.id for m in array.markers if m.action == Marker.DELETE)
+            received.clear()
 
-        rig.spin_until(lambda: len(added()) == 2, 10.0, "two wedge markers")
-        added_ids = added()
+        def detect() -> None:
+            if not added_ids and time.monotonic() >= due[0]:
+                due[0] = time.monotonic() + 0.5
+                pub.publish(_detection("map", 0.0))
+                pub.publish(_detection("map", 0.3))
+
+        def two_added() -> bool:
+            collect()
+            return len(added_ids) >= 2
+
+        rig.spin_until(two_added, 10.0, "two wedge markers", tick=detect)
+        rig.spin_for(0.5)
+        collect()
 
         client = rig.node.create_client(SetParameters, f"{rig.ns}/hearing_belief/set_parameters")
         rig.spin_until(client.service_is_ready, 10.0, "the set_parameters service")
@@ -327,15 +341,11 @@ def test_belief_node_wedge_markers_add_then_expire(tmp_path: Path) -> None:
         rig.spin_until(future.done, 10.0, "set belief.tau_s")
         assert all(result.successful for result in future.result().results)
 
-        deleted: set[int] = set()
-
-        def collect_deleted() -> bool:
-            for array in received:
-                deleted.update(m.id for m in array.markers if m.action == Marker.DELETE)
-            received.clear()
+        def all_deleted() -> bool:
+            collect()
             return deleted >= added_ids
 
-        rig.spin_until(collect_deleted, 10.0, "the wedge markers to expire")
+        rig.spin_until(all_deleted, 10.0, "the wedge markers to expire")
         assert deleted == added_ids
 
 
