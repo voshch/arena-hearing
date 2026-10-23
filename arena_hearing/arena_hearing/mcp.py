@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field
 
-from arena_hearing.constants import BELIEF_GRID, COSTMAP_FILTER_INFO, POLICY_STATE, SPEED_FILTER_MASK
+from arena_hearing.constants import BELIEF_GRID, COSTMAP_FILTER_INFO, POLICY_STATE, SPEED_FILTER_MASK, detections
 from arena_mcp.core import LATCHED, RELIABLE, ROS, Domain, ToolError, media, msgs, robot_ns
 
 if TYPE_CHECKING:
@@ -72,7 +72,7 @@ async def hearing_detections(
     if frontend is not None and frontend not in {item.value for item in Frontend}:
         raise ToolError(f"unknown frontend {frontend!r}", hint=f"frontends: {', '.join(item.value for item in Frontend)}")
     ns = await robot_ns(env_id, robot)
-    topics = {item.value: f"{ns}/hearing/{item.value}/detections" for item in Frontend if frontend in (None, item.value)}
+    topics = {item.value: detections(ns, item.value) for item in Frontend if frontend in (None, item.value)}
     published = set((await ROS.graph())["topics"])
     live = {name: topic for name, topic in topics.items() if topic in published}
     if not live:
