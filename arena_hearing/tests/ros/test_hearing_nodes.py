@@ -212,8 +212,7 @@ def test_belief_node_paints_the_wedge_of_each_robot_along_its_bearing_and_not_be
         r0_grids, r1_grids = _grids(rig, "r0"), _grids(rig, "r1")
         pub = _detection_publisher(rig, "r0")
         _detection_publisher(rig, "r1")
-        pub.publish(_detection("map", 0.0))
-        rig.spin_until(lambda: bool(r0_grids) and int(_as_array(r0_grids[-1]).sum()) > 0, 10.0, "a painted r0 belief grid")
+        rig.spin_until(lambda: bool(r0_grids) and int(_as_array(r0_grids[-1]).sum()) > 0, 10.0, "a painted r0 belief grid", tick=lambda: pub.publish(_detection("map", 0.0)))
         rig.spin_until(lambda: len(r1_grids) >= 3, 10.0, "r1 belief grids")
 
         grid_msg = r0_grids[-1]
@@ -265,8 +264,7 @@ def test_belief_node_drops_a_detection_with_nan_azimuth(tmp_path: Path) -> None:
         assert settled > 0
         assert all(int(_as_array(msg).sum()) == 0 for msg in grids)
 
-        pub.publish(_detection("map", 0.0))
-        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the valid detection painted")
+        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the valid detection painted", tick=lambda: pub.publish(_detection("map", 0.0)))
 
 
 @pytest.mark.usefixtures("default_sounds")
@@ -284,9 +282,7 @@ def test_belief_node_drops_detections_until_the_robot_transform_exists(tmp_path:
         assert all(int(_as_array(msg).sum()) == 0 for msg in grids)
 
         _publish_tf(rig, base, 2.0, 1.0)
-        rig.spin_for(0.5)
-        pub.publish(_detection("map", 0.0))
-        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "a painted belief grid once the transform exists")
+        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "a painted belief grid once the transform exists", tick=lambda: pub.publish(_detection("map", 0.0)))
         info = grids[-1].info
         grid = _as_array(grids[-1])
         rows, cols = np.nonzero(grid == grid.max())
