@@ -1,4 +1,4 @@
-"""Robot hearing layer of one env: belief grid, speed-filter policy and the srp or seld front-end, ``robot.hearing.<key>`` forwarded as ``<key>``."""
+"""Robot hearing layer of one env: belief grid, speed-filter policy, the srp or seld front-end and, with driver.enabled, the search driver, ``robot.hearing.<key>`` forwarded as ``<key>``."""
 
 import launch
 import launch.actions
@@ -7,7 +7,7 @@ from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from launch_ros.actions import Node
 
 from arena_hearing.belief_grid import NOMINAL_EVENT_RATE_HZ
-from arena_hearing.params import BeliefGroup, Frontend, all_params
+from arena_hearing.params import BeliefGroup, DriverGroup, Frontend, all_params
 
 _PREFIX = "robot.hearing."
 _POLICY_KEY = f"{_PREFIX}policy"
@@ -29,6 +29,7 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
     }
     if frontend is Frontend.SRP:
         derived["belief.kinds"] = ["onset"]
+        derived["driver.kinds"] = ["onset"]
     forwarded: dict[str, object] = {}
     detect_kinds = sorted(name for name, kind in SoundLibrary.default().kinds().items() if kind.detect)
     for key, raw in configs.items():
@@ -50,6 +51,8 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
     actions: list[launch.LaunchDescriptionEntity] = [node("hearing_belief", "hearing_belief_node"), node("hearing_policy", "hearing_policy")]
     if frontend in _FRONTEND_NODES:
         actions.append(node(*_FRONTEND_NODES[frontend]))
+    if forwarded.get(DriverGroup.ENABLED.name):
+        actions.append(node("hearing_search_driver", "hearing_search_driver"))
     return actions
 
 

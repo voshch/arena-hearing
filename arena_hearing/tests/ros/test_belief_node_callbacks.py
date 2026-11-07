@@ -198,6 +198,17 @@ def test_map_layout_at_native_resolution_frees_cells_below_the_occupied_threshol
     assert robot.grid is not grid
 
 
+def test_a_standalone_grid_without_a_size_spans_the_env_map_and_frees_every_cell(belief) -> None:
+    node = belief(**_standalone(**{"belief.standalone.size_m": [0.0, 0.0]}))
+    (robot,) = _bind(node, ("r0", "jackal"))
+    assert node._layout is None
+    node._cb_map(_map_msg(40, 30, 0.1, (1.0, 2.0), _occupancy(30, 40)))
+    layout = node._layout
+    assert (layout.origin_x, layout.origin_y, layout.resolution, layout.width, layout.height) == (1.0, 2.0, pytest.approx(0.1), 40, 30)
+    assert layout.free is None
+    assert robot.grid.free.all()
+
+
 @pytest.mark.parametrize(
     "map_resolution",
     [0.1, float(np.float32(0.1))],

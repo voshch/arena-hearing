@@ -126,7 +126,7 @@ class BeliefNode(ArenaMixinNode):
         self._tf_buffer = tf2_ros.Buffer()
         self._tf_listener = ThreadedTransformListener(self._tf_buffer)
 
-        if self.conf.Belief.STANDALONE_ENABLED.value:
+        if self._standalone_fixed():
             self._build_standalone_layout()
         self._rate = self.conf.Belief.PUBLISH_RATE_HZ.value
         self.create_subscription(OccupancyGrid, f"{self._tg}/{MAP}", self._cb_map, qos.latched())
@@ -188,6 +188,10 @@ class BeliefNode(ArenaMixinNode):
             return None
         return BeliefGrid(layout.origin_x, layout.origin_y, layout.resolution, layout.width, layout.height, self._config, free=layout.free)
 
+    def _standalone_fixed(self) -> bool:
+        b = self.conf.Belief
+        return b.STANDALONE_ENABLED.value and all(v > 0.0 for v in b.STANDALONE_SIZE_M.value[:2])
+
     def _build_standalone_layout(self) -> None:
         b = self.conf.Belief
         res = b.RESOLUTION_M.value or 0.1
@@ -206,19 +210,22 @@ class BeliefNode(ArenaMixinNode):
                 robot.wedges.clear()
 
     def _cb_map(self, msg: OccupancyGrid) -> None:
-        if self.conf.Belief.STANDALONE_ENABLED.value:
+        if self._standalone_fixed():
             return
         info = msg.info
         last = self._map_info
         if last is not None and info.width == last.width and info.height == last.height and abs(info.resolution - last.resolution) < 1e-9 and abs(info.origin.position.x - last.origin.position.x) < 1e-9 and abs(info.origin.position.y - last.origin.position.y) < 1e-9:
             return
         self._map_info = info
-        data = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width)
-        native_free = data < self._map_conf.OCCUPIED_THRESHOLD.value
         res = self.conf.Belief.RESOLUTION_M.value
-        if res <= 0.0:
-            self._layout = _Layout(info.origin.position.x, info.origin.position.y, info.resolution, info.width, info.height, native_free)
+        if self.conf.Belief.STANDALONE_ENABLED.value:
+            res = res or 0.1
+            self._layout = _Layout(info.origin.position.x, info.origin.position.y, res, max(round(info.width * info.resolution / res), 1), max(round(info.height * info.resolution / res), 1))
+        elif res <= 0.0:
+            data = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width)
+            self._layout = _Layout(info.origin.position.x, info.origin.position.y, info.resolution, info.width, info.height, data < self._map_conf.OCCUPIED_THRESHOLD.value)
         else:
+            native_free = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width) < self._map_conf.OCCUPIED_THRESHOLD.value
             w = max(round(info.width * info.resolution / res), 1)
             h = max(round(info.height * info.resolution / res), 1)
             scale = res / info.resolution

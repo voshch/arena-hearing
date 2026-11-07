@@ -61,7 +61,7 @@ class BeliefGroup(ParamGroup):
     RESOLUTION_M = Param[float]("belief.resolution_m", 0.0, parse=non_negative)
     STANDALONE_ENABLED = Param[bool]("belief.standalone.enabled", False)
     STANDALONE_ORIGIN_M = Param[tuple[float, ...]]("belief.standalone.origin_m", (-10.0, -10.0), parse=floats)
-    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", (20.0, 20.0), parse=floats)
+    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", (0.0, 0.0), parse=floats, description="Standalone grid size in m, 0 = the extent of the env map, whose cells it never reads.")
     WEDGE_DEG = Param[float]("belief.wedge_deg", 10.0, parse=positive)
     MIN_HALF_WIDTH_M = Param[float]("belief.min_half_width_m", 0.3, parse=non_negative)
     TAU_S = Param[float]("belief.tau_s", 2.0, parse=positive)
@@ -112,6 +112,46 @@ class PolicyGroup(ParamGroup):
     REACTION_RADIUS_M = Param[float]("policy.reaction_radius_m", 2.0, parse=non_negative)
 
 
+class GoalRuleName(enum.StrEnum):
+    NEAREST = "nearest"
+    BELIEF = "belief"
+
+
+class StopRuleName(enum.StrEnum):
+    NEVER = "never"
+    EVERY_GOAL = "every_goal"
+    ON_CALL = "on_call"
+    FIXED_BEND = "fixed_bend"
+
+
+class DriverGroup(ParamGroup):
+    ENABLED = Param[bool]("driver.enabled", False, description="Start the search driver: frontier goals on the robot's SLAM map, sent to its navigate_to_pose.")
+    GOAL_RULE = Param[GoalRuleName]("driver.goal_rule", GoalRuleName.NEAREST, parse=GoalRuleName, description="Search goal rule, nearest frontier (no audio) or belief.")
+    STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, parse=StopRuleName, description="Search stop rule: never, every_goal, on_call or fixed_bend.")
+    LISTEN_S = Param[float]("driver.listen_s", 3.0, parse=non_negative, description="Seconds the search driver halts to listen per stop.")
+    SNAP = Param[bool]("driver.snap", False, description="Snap a heard call onto the SLAM-map opening or frontier it points at (belief rule).")
+    REPLAN_ON_CALL = Param[bool]("driver.replan_on_call", True, description="Ask the goal rule again on every new call while driving and switch to the goal it picks.")
+    STUCK_S = Param[float]("driver.stuck_s", 15.0, parse=non_negative, description="Seconds without leaving reached_radius_m after which a goal counts as failed, 0 = never.")
+    RATE_HZ = Param[float]("driver.rate_hz", 2.0, parse=positive)
+    KINDS = Param[tuple[str, ...]]("driver.kinds", ("speech",), parse=names)
+    HEARD_MAX_AGE_S = Param[float]("driver.heard_max_age_s", 10.0, parse=non_negative)
+    MIN_FRONTIER_CELLS = Param[int]("driver.min_frontier_cells", 8, parse=count)
+    REACHED_RADIUS_M = Param[float]("driver.reached_radius_m", 0.5, parse=positive)
+    OPENING_MIN_WIDTH_M = Param[float]("driver.opening_min_width_m", 0.6, parse=positive)
+    OPENING_MAX_WIDTH_M = Param[float]("driver.opening_max_width_m", 1.6, parse=positive)
+    OPENING_DEPTH_M = Param[float]("driver.opening_depth_m", 0.6, parse=positive)
+    BELIEF_RADIUS_M = Param[float]("driver.belief_radius_m", 1.5, parse=positive)
+    BELIEF_MIN_MASS = Param[float]("driver.belief_min_mass", 1.0, parse=non_negative)
+    LOCATE_THRESHOLD = Param[float]("driver.locate_threshold", 0.8, parse=within(0.0, 1.0))
+    DISTANCE_SCALE_M = Param[float]("driver.distance_scale_m", 5.0, parse=positive)
+    STANDOFF_M = Param[float]("driver.standoff_m", 1.0, parse=positive, description="Distance the belief rule stops short of a located person, below the task's found radius.")
+    APPROACH_REACH = Param[float]("driver.approach_reach", 2.0, parse=positive, description="Standoffs from a located person within which the belief rule takes a free cell, beyond it the frontier nearest the person.")
+    SNAP_MAX_ERROR_DEG = Param[float]("driver.snap_max_error_deg", 20.0, parse=within(0.0, 180.0))
+    BEND_LOOKAHEAD_M = Param[float]("driver.bend_lookahead_m", 4.0, parse=non_negative)
+    BEND_STOP_BEFORE_M = Param[float]("driver.bend_stop_before_m", 2.0, parse=positive)
+    BEND_HYSTERESIS_M = Param[float]("driver.bend_hysteresis_m", 1.0, parse=non_negative)
+
+
 class AudioGroup(ParamGroup):
     RELIABLE_ENABLED = Param[bool]("audio.reliable.enabled", False)
 
@@ -132,7 +172,7 @@ class SrpGroup(ParamGroup):
     ONSET_DB = Param[float]("srp.onset_db", 6.0, parse=finite, description="srp front-end onset threshold above the floor in dB.")
 
 
-GROUPS: tuple[type[ParamGroup], ...] = (MapGroup, DiagnosticsGroup, HearingGroup, BeliefGroup, PolicyGroup, AudioGroup, SeldGroup, SrpGroup)
+GROUPS: tuple[type[ParamGroup], ...] = (MapGroup, DiagnosticsGroup, HearingGroup, BeliefGroup, PolicyGroup, DriverGroup, AudioGroup, SeldGroup, SrpGroup)
 
 
 def all_params() -> dict[str, Param[object]]:
@@ -172,6 +212,10 @@ class Configuration:
     @functools.cached_property
     def Policy(self) -> PolicyGroup:
         return PolicyGroup(self._server)
+
+    @functools.cached_property
+    def Driver(self) -> DriverGroup:
+        return DriverGroup(self._server)
 
     @functools.cached_property
     def Audio(self) -> AudioGroup:
