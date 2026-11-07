@@ -127,5 +127,13 @@ def _frontier(cells: np.ndarray) -> Frontier:
 
 def away_from(frontiers: list[Frontier], xy: tuple[float, float], radius_m: float, min_cells: int) -> list[Frontier]:
     """The frontiers without their cells within ``radius_m`` of ``xy``, goals recomputed, those left under ``min_cells`` dropped."""
-    kept = [_frontier(cells) for f in frontiers if len(cells := f.cells_xy[np.linalg.norm(f.cells_xy - np.asarray(xy), axis=1) > radius_m]) >= min_cells]
+    return away_from_points(frontiers, [xy], radius_m, min_cells)
+
+
+def away_from_points(frontiers: list[Frontier], points: typing.Sequence[tuple[float, float]], radius_m: float, min_cells: int) -> list[Frontier]:
+    """The frontiers without their cells within ``radius_m`` of any of ``points``, goals recomputed, those left under ``min_cells`` dropped."""
+    if not points:
+        return list(frontiers)
+    centres = np.asarray(points)
+    kept = [_frontier(cells) for f in frontiers if len(cells := f.cells_xy[np.min(np.linalg.norm(f.cells_xy[:, None, :] - centres[None, :, :], axis=2), axis=1) > radius_m]) >= min_cells]
     return sorted(kept, key=lambda f: -f.n_cells)

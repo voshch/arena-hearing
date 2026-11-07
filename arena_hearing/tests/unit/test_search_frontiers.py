@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from arena_hearing.search.frontiers import FREE, OCCUPIED, UNKNOWN, MapGrid, away_from, find_frontiers, find_openings
+from arena_hearing.search.frontiers import FREE, OCCUPIED, UNKNOWN, MapGrid, away_from, away_from_points, find_frontiers, find_openings
 
 RESOLUTION = 0.1
 
@@ -105,3 +105,12 @@ def test_a_frontier_away_from_a_point_loses_its_cells_there_and_moves_its_goal()
 def test_a_frontier_with_too_few_cells_left_is_dropped() -> None:
     (frontier,) = find_frontiers(_grid(_edge()), min_cells=5)
     assert away_from([frontier], frontier.goal_xy, 3.0, 5) == []
+
+
+def test_a_frontier_away_from_two_points_loses_its_cells_near_both() -> None:
+    (frontier,) = find_frontiers(_grid(_edge()), min_cells=5)
+    points = [frontier.cells_xy[0], frontier.cells_xy[-1]]
+    (rest,) = away_from_points([frontier], points, 0.5, 5)
+    for point in points:
+        assert np.min(np.linalg.norm(rest.cells_xy - point, axis=1)) > 0.5
+    assert rest.n_cells < frontier.n_cells

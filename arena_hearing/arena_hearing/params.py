@@ -18,6 +18,7 @@ class Frontend(enum.StrEnum):
     BUS = "bus"
     SRP = "srp"
     SELD = "seld"
+    CALL = "call"
 
     @property
     def array_spec(self) -> str:
@@ -122,12 +123,15 @@ class StopRuleName(enum.StrEnum):
     EVERY_GOAL = "every_goal"
     ON_CALL = "on_call"
     FIXED_BEND = "fixed_bend"
+    FIXED = "fixed"
+    ROOM_ENTRY = "room_entry"
+    THREE_POSITIONS = "three_positions"
 
 
 class DriverGroup(ParamGroup):
     ENABLED = Param[bool]("driver.enabled", False, description="Start the search driver: frontier goals on the robot's SLAM map, sent to its navigate_to_pose.")
     GOAL_RULE = Param[GoalRuleName]("driver.goal_rule", GoalRuleName.NEAREST, parse=GoalRuleName, description="Search goal rule, nearest frontier (no audio) or belief.")
-    STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, parse=StopRuleName, description="Search stop rule: never, every_goal, on_call or fixed_bend.")
+    STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, parse=StopRuleName, description="Search stop rule: never, every_goal, on_call, fixed_bend, fixed, room_entry or three_positions.")
     LISTEN_S = Param[float]("driver.listen_s", 3.0, parse=non_negative, description="Seconds the search driver halts to listen per stop.")
     SNAP = Param[bool]("driver.snap", False, description="Snap a heard call onto the SLAM-map opening or frontier it points at (belief rule).")
     REPLAN_ON_CALL = Param[bool]("driver.replan_on_call", True, description="Ask the goal rule again on every new call while driving and switch to the goal it picks.")
@@ -150,6 +154,16 @@ class DriverGroup(ParamGroup):
     BEND_LOOKAHEAD_M = Param[float]("driver.bend_lookahead_m", 4.0, parse=non_negative)
     BEND_STOP_BEFORE_M = Param[float]("driver.bend_stop_before_m", 2.0, parse=positive)
     BEND_HYSTERESIS_M = Param[float]("driver.bend_hysteresis_m", 1.0, parse=non_negative)
+    FIXED_TRIGGER_M = Param[float]("driver.fixed.trigger_m", 2.0, parse=non_negative, description="fixed stop rule along-path distance before a corner or door at which the search stops.")
+    FIXED_LATERAL_M = Param[float]("driver.fixed.lateral_m", 1.5, parse=non_negative, description="fixed stop rule distance from the plan within which a corner or door is on the path.")
+    FIXED_PATH_HORIZON_M = Param[float]("driver.fixed.path_horizon_m", 8.0, parse=positive, description="fixed stop rule length of the plan ahead it looks at.")
+    FIXED_REARM_M = Param[float]("driver.fixed.rearm_m", 3.0, parse=non_negative, description="fixed stop rule distance from a served corner or door beyond which it stops again.")
+    FIXED_DOOR_MAX_WIDTH_M = Param[float]("driver.fixed.door_max_width_m", 1.5, parse=positive, description="fixed stop rule widest aperture between two corners that counts as a door.")
+    ROOM_ENTRY_RADIUS_M = Param[float]("driver.room_entry.radius_m", 0.6, parse=positive, description="room_entry stop rule distance from a door's midpoint that counts as crossing it.")
+    ROOM_ENTRY_REARM_M = Param[float]("driver.room_entry.rearm_m", 3.0, parse=non_negative, description="room_entry stop rule distance from a served door beyond which it stops again.")
+    ROOM_ENTRY_DOOR_MAX_WIDTH_M = Param[float]("driver.room_entry.door_max_width_m", 1.5, parse=positive, description="room_entry stop rule widest aperture between two corners that counts as a door.")
+    THREE_POSITIONS_COUNT = Param[int]("driver.three_positions.count", 3, parse=count, description="three_positions stop rule number of distinct heard positions after which it never stops again.")
+    THREE_POSITIONS_SEPARATION_M = Param[float]("driver.three_positions.separation_m", 1.0, parse=positive, description="three_positions stop rule distance below which two listening points are one position.")
 
 
 class AudioGroup(ParamGroup):
@@ -172,7 +186,13 @@ class SrpGroup(ParamGroup):
     ONSET_DB = Param[float]("srp.onset_db", 6.0, parse=finite, description="srp front-end onset threshold above the floor in dB.")
 
 
-GROUPS: tuple[type[ParamGroup], ...] = (MapGroup, DiagnosticsGroup, HearingGroup, BeliefGroup, PolicyGroup, DriverGroup, AudioGroup, SeldGroup, SrpGroup)
+class CallGroup(ParamGroup):
+    CALIB_FILE = Param[str]("call.calib_file", "", description="call front-end calibration npz with threshold__<state> and cov__<state>__4096, empty = default thresholds and no whitening.")
+    MOVING_MPS = Param[float]("call.moving_mps", 0.02, parse=non_negative)
+    SPEED_WINDOW_S = Param[float]("call.speed_window_s", 0.3, parse=positive)
+
+
+GROUPS: tuple[type[ParamGroup], ...] = (MapGroup, DiagnosticsGroup, HearingGroup, BeliefGroup, PolicyGroup, DriverGroup, AudioGroup, SeldGroup, SrpGroup, CallGroup)
 
 
 def all_params() -> dict[str, Param[object]]:
@@ -228,3 +248,7 @@ class Configuration:
     @functools.cached_property
     def Srp(self) -> SrpGroup:
         return SrpGroup(self._server)
+
+    @functools.cached_property
+    def Call(self) -> CallGroup:
+        return CallGroup(self._server)

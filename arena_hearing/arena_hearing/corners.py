@@ -1,6 +1,8 @@
-"""Blind bends along a plan: where free space around the path ahead is hidden from the robot."""
+"""Blind bends along a plan and the occluding corners and doors of the map around the robot."""
 
 from __future__ import annotations
+
+import math
 
 import attrs
 import numpy as np
@@ -143,3 +145,85 @@ def find_blind_bend(
         approach_xy=approach,
         hold_xy=hold,
     )
+
+
+@attrs.frozen
+class Gap:
+    """A jump in visible depth between two neighbouring rays: the occluding corner and the heading of the farther ray, counter-clockwise of the nearer one when far_ccw."""
+
+    heading: float
+    corner_xy: tuple[float, float]
+    near_m: float
+    far_m: float
+    far_ccw: bool
+
+    @property
+    def jump_m(self) -> float:
+        return self.far_m - self.near_m
+
+
+def wrap(angle: float) -> float:
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def visibility_gaps(blocked: np.ndarray, origin: tuple[float, float], resolution: float, robot_xy: tuple[float, float], *, range_m: float = 12.0, ray_deg: float = 0.5, jump_m: float = 1.0) -> list[Gap]:
+    """Gaps of the robot's visibility on a blocked-cell array: rays ray_deg apart up to range_m whose hit depths jump by more than jump_m between neighbours."""
+    x, y = robot_xy
+    h, w = blocked.shape
+    angles = np.radians(np.arange(-180.0, 180.0, ray_deg))
+    steps = np.arange(resolution / 2.0, range_m + 1e-9, resolution / 2.0)
+    rows = np.floor((y + np.sin(angles)[:, None] * steps[None, :] - origin[1]) / resolution).astype(int)
+    cols = np.floor((x + np.cos(angles)[:, None] * steps[None, :] - origin[0]) / resolution).astype(int)
+    outside = (rows < 0) | (rows >= h) | (cols < 0) | (cols >= w)
+    hit = outside | blocked[np.clip(rows, 0, h - 1), np.clip(cols, 0, w - 1)]
+    depth = steps[np.where(hit.any(axis=1), hit.argmax(axis=1), len(steps) - 1)]
+    gaps: list[Gap] = []
+    for i in range(len(angles)):
+        j = (i + 1) % len(angles)
+        if abs(depth[i] - depth[j]) <= jump_m:
+            continue
+        near, far = (i, j) if depth[i] < depth[j] else (j, i)
+        corner = (float(x + depth[near] * math.cos(angles[near])), float(y + depth[near] * math.sin(angles[near])))
+        gaps.append(Gap(heading=float(angles[far]), corner_xy=corner, near_m=float(depth[near]), far_m=float(depth[far]), far_ccw=far == j))
+    return gaps
+
+
+def distinct_gaps(gaps: list[Gap], tolerance_m: float = 0.3) -> list[Gap]:
+    """The gaps with the largest jumps, none with its corner within tolerance_m of the corner of a larger one."""
+    kept: list[Gap] = []
+    for gap in sorted(gaps, key=lambda g: -g.jump_m):
+        if all(math.dist(gap.corner_xy, other.corner_xy) > tolerance_m for other in kept):
+            kept.append(gap)
+    return kept
+
+
+def door_pairs(gaps: list[Gap], max_width_m: float, min_width_m: float = 0.3) -> list[tuple[int, int]]:
+    """Index pairs of gaps whose corners flank an aperture of min_width_m to max_width_m: the first opens counter-clockwise, the second clockwise."""
+    pairs: list[tuple[int, int]] = []
+    used: set[int] = set()
+    candidates = sorted(
+        ((math.dist(a.corner_xy, b.corner_xy), i, j) for i, a in enumerate(gaps) for j, b in enumerate(gaps) if a.far_ccw and not b.far_ccw and 0.0 < wrap(b.heading - a.heading) < math.pi),
+    )
+    for width, i, j in candidates:
+        if min_width_m <= width <= max_width_m and i not in used and j not in used:
+            pairs.append((i, j))
+            used.update((i, j))
+    return pairs
+
+
+@attrs.frozen(eq=False)
+class MapFeatures:
+    """Occluding corners and doors of the map as the robot sees them from its pose."""
+
+    gaps: tuple[Gap, ...]
+    corners_xy: np.ndarray
+    doors_xy: np.ndarray
+
+    @classmethod
+    def at(cls, blocked: np.ndarray, origin: tuple[float, float], resolution: float, robot_xy: tuple[float, float], *, range_m: float, door_max_width_m: float) -> MapFeatures:
+        gaps = distinct_gaps(visibility_gaps(blocked, origin, resolution, robot_xy, range_m=range_m))
+        pairs = door_pairs(gaps, door_max_width_m)
+        paired = {k for pair in pairs for k in pair}
+        doors = [(0.5 * (gaps[i].corner_xy[0] + gaps[j].corner_xy[0]), 0.5 * (gaps[i].corner_xy[1] + gaps[j].corner_xy[1])) for i, j in pairs]
+        corners = [gap.corner_xy for k, gap in enumerate(gaps) if k not in paired]
+        return cls(tuple(gaps), np.asarray(corners, dtype=np.float64).reshape(-1, 2), np.asarray(doors, dtype=np.float64).reshape(-1, 2))

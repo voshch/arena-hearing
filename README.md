@@ -1,6 +1,6 @@
 # arena_hearing
 
-Robot hearing for Arena: the `srp` and `seld` front-ends on any robot audio
+Robot hearing for Arena: the `srp`, `seld` and `call` front-ends on any robot audio
 source, the directional belief grid, the speed-filter policy and the Nav2
 overlay that applies its mask. It is the consumer side of the audio a robot
 receives. The audio itself comes from an acoustics simulator, `acoustics:=arena`
@@ -25,6 +25,8 @@ arena_hearing/                  this repository
     |   |-- belief_grid.py belief_node.py      belief grid and its node
     |   |-- policy.py corners.py policy_node.py speed-filter policy and its node
     |   |-- search/ search_driver_node.py      search driver and its node
+    |   |-- corners.py heard.py                blind bends, map corners and doors, heard positions
+    |   |-- call.py srp.py whitening.py call_frontend_node.py  call front-end
     |   |-- doa.py onset.py timeline.py srp_frontend_node.py   srp front-end
     |   |-- seld.py dcase.py weights.py seld_frontend_node.py  seld front-end
     |   |-- audio_replay.py     wav replay as AudioFrame
@@ -44,6 +46,7 @@ Every detection source publishes `arena_robots_msgs/SoundDetection` on
 | `bus` | the arena_auditory bus node, the propagated receptions of the robot, map-frame bearings |
 | `srp` | `hearing_srp_frontend`, energy onsets plus GCC-PHAT over `raw_array`, array-frame bearings, kind `onset` |
 | `seld` | `hearing_seld_frontend`, the SELDnet model over `raw_array`, array-frame bearings |
+| `call` | `hearing_call_frontend`, band-flux call detection over `raw_array` and `stem_motor`, map-frame headings, kind `onset` |
 
 Every hearing node covers every fleet robot of its env: it follows
 `state/robots`, keeps its state per robot and registers one hard lockstep
@@ -63,7 +66,7 @@ to dB SPL with the MEMS sensitivity the frame carries.
 
 ## Running in an Arena env
 
-`robot.hearing:=bus|srp|seld` makes the env launch's hearing axis include
+`robot.hearing:=bus|srp|seld|call` makes the env launch's hearing axis include
 `launch/hearing.launch.py` per env and merge `config/nav2_overlay.yaml` (a
 `SpeedFilter` on the local costmap and the controller's `speed_limit_topic`,
 both below the robot namespace) into every robot's Nav2 parameters:
@@ -76,7 +79,7 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
     acoustics:=arena robot.hearing:=bus
 ```
 
-`srp` and `seld` default `auditory.array.spec` to `four_mic`.
+`srp`, `seld` and `call` default `auditory.array.spec` to `four_mic`.
 
 ## Launch arguments
 
@@ -86,7 +89,7 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 |---|---|---|
 | `env.ns` | `/arena/env_0` | Env namespace, the hearing nodes live in it |
 | `tg_node` | `arena_env_node` | Env node, the robot topics live below it |
-| `frontend` | `bus` | `bus`, `srp` or `seld`, `srp` and `seld` also start their front-end node |
+| `frontend` | `bus` | `bus`, `srp`, `seld` or `call`, all but `bus` also start their front-end node |
 | `policy` | `full` | Mask layers: `belief` only, `listen` adds the corner listen cap, `full` adds yield |
 | `robot.hearing.seld.device` | empty (`cuda`) | Torch device of the SELDnet front-end |
 | `robot.hearing.seld.lookahead_frames` | empty (`5`) | SELDnet label frames of future context, 100 ms each |
@@ -94,9 +97,10 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | `robot.hearing.srp.hop_s` | empty (`0.1`) | srp hop length in seconds |
 | `robot.hearing.srp.floor_window_s` | empty (`5.0`) | srp noise-floor median window in seconds |
 | `robot.hearing.srp.onset_db` | empty (`6.0`) | srp onset threshold above the floor in dB |
+| `robot.hearing.call.calib_file` | empty | call calibration npz, empty keeps the default thresholds and no whitening |
 | `robot.hearing.driver.enabled` | empty (`false`) | Start the search driver |
 | `robot.hearing.driver.goal_rule` | empty (`nearest`) | `nearest` frontier (no audio) or `belief` |
-| `robot.hearing.driver.stop_rule` | empty (`never`) | `never`, `every_goal`, `on_call` or `fixed_bend` |
+| `robot.hearing.driver.stop_rule` | empty (`never`) | `never`, `every_goal`, `on_call`, `fixed_bend`, `fixed`, `room_entry` or `three_positions`, see Search driver |
 | `robot.hearing.driver.listen_s` | empty (`3.0`) | Seconds halted to listen per stop |
 | `robot.hearing.driver.snap` | empty (`false`) | Snap a heard call onto a SLAM-map opening or frontier |
 | `robot.hearing.driver.replan_on_call` | empty (`true`) | Ask the goal rule again on every new call while driving |
@@ -111,7 +115,7 @@ Every `robot.hearing.<param>:=<value>` reaches the hearing nodes as parameter
 An unknown key or an emission level of a kind that is not detected is an error, an empty value keeps the node default, and a list cannot be empty: `robot.hearing.belief.kinds:=[all]` accepts every kind. These keys
 never reach the robot adapters. The launch also derives `hearing.frontend`,
 `hearing.tg_node`, `belief.event_rate_hz`, `policy.listen.enabled`,
-`policy.yield.enabled` and, for `srp`, `belief.kinds` and `driver.kinds`.
+`policy.yield.enabled` and, for `srp` and `call`, `belief.kinds` and `driver.kinds`.
 
 ## Topics
 
@@ -120,12 +124,13 @@ robot namespace:
 
 | Direction | Topic | Note |
 |---|---|---|
-| in | `<r>/audio/raw_array` | `arena_robots_msgs/AudioFrame` (`ArrayStream.RAW` of `arena_robots.audio`), srp and seld |
+| in | `<r>/audio/raw_array` | `arena_robots_msgs/AudioFrame` (`ArrayStream.RAW` of `arena_robots.audio`), srp, seld and call |
+| in | `<r>/audio/stem_motor` | `arena_robots_msgs/AudioFrame` (`ArrayStream.STEM_MOTOR`), the call front-end's ego gate |
 | in | `<r>/hearing/<frontend>/detections` | `arena_robots_msgs/SoundDetection` |
 | in | `map`, `state/resetting`, `state/robots` | grid geometry, reset, fleet |
 | in | `<r>/plan` | Nav2 global plan, for blind-bend detection |
 | in | `<r>/map` | the robot's SLAM map, read by the search driver |
-| out | `<r>/hearing/srp/detections`, `<r>/hearing/seld/detections` | the front-ends |
+| out | `<r>/hearing/srp/detections`, `<r>/hearing/seld/detections`, `<r>/hearing/call/detections` | the front-ends |
 | out | `<r>/lockstep/hearing` | front-end heartbeat per robot |
 | out | `<r>/hearing/belief_grid`, `<r>/hearing/belief_wedges` | RViz, the wedges only while subscribed |
 | out | `<r>/hearing/speed_filter_mask` | `OccupancyGrid`, latched, read by the robot's SpeedFilter |
@@ -216,6 +221,22 @@ driven to. A goal the robot makes no progress on (it stays within
 The driver reports `done` while no frontier is left and resumes once the map
 shows a new one.
 
+Further stop rules, each a `StopRule` in `search/stops.py` and tuned by
+`driver.<rule>.<param>`:
+
+| Rule | Behavior |
+|---|---|
+| `fixed` | once per corner or door of the live `map` within `driver.fixed.lateral_m` (1.5) of the next `driver.fixed.path_horizon_m` (8.0) of the plan, `driver.fixed.trigger_m` (2.0) of path before it, again only after the robot was more than `driver.fixed.rearm_m` (3.0) away from it |
+| `room_entry` | once per door of the live map the robot comes within `driver.room_entry.radius_m` (0.6) of, again after it was more than `driver.room_entry.rearm_m` (3.0) away |
+| `three_positions` | at each new goal until calls were heard from `driver.three_positions.count` (3) distinct positions, listening points less than `driver.three_positions.separation_m` (1.0) apart being one position |
+
+The map features come from the live `map`, not from a world file: an occluding
+corner is a jump of more than 1 m in the visible depth between neighbouring
+0.5 degree rays up to the look-ahead range, a door is two corners that flank an
+aperture of 0.3 to `driver.fixed.door_max_width_m` (1.5, `driver.room_entry.door_max_width_m`
+for `room_entry`) and is reported as their midpoint. Occupied cells block the
+rays, unknown cells let them through. Every stop listens for `driver.listen_s`.
+
 Every `robot.hearing.*` key is a benchmark contestant argument, so the sweep
 form of a contest tunes the driver, one contestant per combination named after
 the varying values (`listen-every_goal-0.5`, ...):
@@ -234,6 +255,33 @@ robot.hearing.driver.listen_s: [0.5, 1.0, 1.5, 2.0, 3.0]
 The SLAM-only baseline is the contestant with `driver.goal_rule: nearest` and
 `driver.stop_rule: never`. The goal check (`task.search.radius`,
 `line_of_sight`, `dwell_s`) belongs to the suite stage's `config.search`.
+
+### Call front-end
+
+`hearing_call_frontend` detects a call (a victim's shout) on the 16 kHz
+`raw_array` of the robot, in blocks of 320 samples of any frame length. The
+statistic is the rise of the 300 to 3400 Hz spectral flux over the median of
+the previous 100 blocks. The drivetrain stem `stem_motor` gates it: while the
+robot moves, a jump of the stem level of more than 10 dB mutes the detector for
+1.5 s. A robot counts as moving above `call.moving_mps` (0.02) over
+`call.speed_window_s` (0.3 s) of the pose of its base frame, and each state
+(`moving`, `stopped`) has its own threshold, a stopped robot also needs 100
+blocks of rest. An onset opens 75 blocks of bearing accumulation: every second
+block above half the threshold adds the SRP-PHAT map of the last 4096 samples,
+whitened by the ego-noise covariance of the state when a calibration is given,
+turned into the map frame by the TF yaw of the array frame. The detection is
+published when the accumulation ends, stamped with the onset, with
+`frontend="call"`, `kind="onset"`, `header.frame_id` the map frame, the
+azimuth the peak of the summed maps, `level_db` the loudest block as dB SPL and
+`confidence` the margin of the statistic over its threshold squashed like the
+srp front-end. A call with no usable window carries no bearing and is not
+published. The launch sets `belief.kinds` and `driver.kinds` to `onset` and
+`belief.event_rate_hz` to 0.5 for it.
+
+`call.calib_file` points to an npz with `threshold__moving`,
+`threshold__stopped` and `cov__moving__4096`, `cov__stopped__4096` (the
+ego-noise spatial covariance per rfft bin of a 4096 sample window). Empty keeps
+the thresholds 7.5 dB (moving) and 1.0 dB (stopped) without whitening.
 
 ## Evaluation
 

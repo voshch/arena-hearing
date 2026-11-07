@@ -8,7 +8,7 @@ import math
 import attrs
 import numpy as np
 
-from arena_hearing.search.frontiers import MapGrid, away_from, find_frontiers, find_openings
+from arena_hearing.search.frontiers import MapGrid, away_from, away_from_points, find_frontiers, find_openings
 from arena_hearing.search.goals import BeliefMap, GoalRule, GoalView, Heard
 from arena_hearing.search.stops import StopRule, StopView
 
@@ -48,6 +48,7 @@ class Tick:
     plan_xy: np.ndarray | None
     status: NavStatus  # of the last goal sent
     limited: bool = False
+    heard_positions: int = 0
 
 
 @attrs.frozen(kw_only=True)
@@ -106,7 +107,7 @@ class SearchDriver:
                 self.blocked.append(self.goal)
                 self.phase = Phase.SELECT
             else:
-                view = StopView(robot_xy=tick.robot_xy, goal_changed=self.fresh_goal, calls=tick.calls - self.calls_mark, plan_xy=tick.plan_xy, grid=tick.grid)
+                view = StopView(robot_xy=tick.robot_xy, goal_changed=self.fresh_goal, calls=tick.calls - self.calls_mark, plan_xy=tick.plan_xy, grid=tick.grid, heard_positions=tick.heard_positions)
                 self.fresh_goal = False
                 if self.stop_rule.should_stop(view):
                     self.phase, self.listen_start = Phase.LISTEN, tick.now
@@ -130,9 +131,12 @@ class SearchDriver:
         return self.config.stuck_s > 0.0 and tick.now - self.progress_t >= self.config.stuck_s
 
     def _choose(self, tick: Tick, grid: MapGrid) -> tuple[float, float] | None:
+        """The frontiers with visited goal clusters retired, their remaining cells counted only when nothing else is left."""
         c = self.config
-        unblocked = [f for f in find_frontiers(grid, c.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
-        frontiers = away_from(unblocked, tick.robot_xy, c.reached_radius_m, c.min_frontier_cells)
+        found = find_frontiers(grid, c.min_frontier_cells)
+        frontiers = away_from([f for f in found if not self._is_blocked(f.goal_xy)], tick.robot_xy, c.reached_radius_m, c.min_frontier_cells)
+        if not frontiers:
+            frontiers = away_from_points(found, [*self.blocked, tick.robot_xy], c.reached_radius_m, c.min_frontier_cells)
         openings = [o for o in find_openings(grid, c.opening_min_width_m, c.opening_max_width_m, c.opening_depth_m) if not self._is_blocked(o.xy)]
         return self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard, blocked=tuple(self.blocked), blocked_radius_m=c.reached_radius_m))
 

@@ -84,6 +84,7 @@ NOMINAL_EVENT_RATE_HZ: dict[str, float] = {
     "bus": 2.0,
     "srp": 2.0,
     "seld": 10.0,
+    "call": 0.5,
 }
 
 
