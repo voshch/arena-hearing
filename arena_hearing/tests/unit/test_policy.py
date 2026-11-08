@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import pytest
-from arena_rclpy_mixins.param_groups import configure
+from arena_rclpy_mixins.params import configure
 
 from arena_hearing.params import PolicyGroup
 from arena_hearing.policy import LevelTrend, PolicyConfig, State, YieldMachine, compose_masks, mass_split, paint_lane

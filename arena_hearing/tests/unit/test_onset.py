@@ -75,7 +75,7 @@ def _walking_pedestrian(total_s: float, step_interval_s: float, seed: int) -> np
 
 @pytest.mark.usefixtures("default_sounds")
 def test_srp_onsets_of_a_walking_pedestrian_hold_belief_above_the_policy_threshold() -> None:
-    from arena_rclpy_mixins.param_groups import configure
+    from arena_rclpy_mixins.params import configure
     from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 
     from arena_hearing.belief_grid import NOMINAL_EVENT_RATE_HZ, BeliefConfig, BeliefGrid, dilate_belief, emission_levels

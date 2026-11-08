@@ -7,7 +7,7 @@ import pytest
 
 pytest.importorskip("scipy")
 
-from arena_rclpy_mixins.param_groups import configure
+from arena_rclpy_mixins.params import configure
 from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from scipy.ndimage import maximum_filter1d
 
