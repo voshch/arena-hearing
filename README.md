@@ -107,8 +107,11 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | `robot.hearing.driver.stuck_s` | empty (`15.0`) | Seconds without progress before a goal counts as failed, `0` = never |
 | `robot.hearing.driver.approach_reach` | empty (`2.0`) | Standoffs from a located person within which the belief rule takes a free cell, beyond it the frontier nearest the person |
 
-The `robot.hearing.*` arguments are declared from the parameters in
-[`params.py`](arena_hearing/arena_hearing/params.py) that carry a description.
+The `robot.hearing.*` arguments are declared from every parameter in
+[`params.py`](arena_hearing/arena_hearing/params.py) except the ones the launch
+derives itself (`hearing.frontend`, `hearing.tg_node`, `belief.event_rate_hz`,
+`policy.listen.enabled`, `policy.yield.enabled`). Each `Param` carries its
+description and its range or choices.
 Every `robot.hearing.<param>:=<value>` reaches the hearing nodes as parameter
 `<param>`, coerced to the type of its default, for example
 `robot.hearing.belief.tau_s:=3.0` or `robot.hearing.belief.emission_db.footstep:=55.0`.

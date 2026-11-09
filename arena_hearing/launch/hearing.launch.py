@@ -2,16 +2,18 @@
 
 import launch
 import launch.actions
-from arena_rclpy_mixins.param_groups import Param, declare_launch_arguments
+from arena_rclpy_mixins.launch_argument import LaunchArgument
+from arena_rclpy_mixins.params import Param
 from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from launch_ros.actions import Node
 
 from arena_hearing.belief_grid import NOMINAL_EVENT_RATE_HZ
-from arena_hearing.params import BeliefGroup, DriverGroup, Frontend, all_params
+from arena_hearing.params import BeliefGroup, DriverGroup, Frontend, HearingGroup, PolicyGroup, all_params
 
 _PREFIX = "robot.hearing."
 _POLICY_KEY = f"{_PREFIX}policy"
 _POLICIES = ("belief", "listen", "full")
+_PLUMBING = (HearingGroup.FRONTEND.name, HearingGroup.TG_NODE.name, BeliefGroup.EVENT_RATE_HZ.name, PolicyGroup.LISTEN_ENABLED.name, PolicyGroup.YIELD_ENABLED.name)
 _FRONTEND_NODES = {Frontend.SRP: ("srp_frontend", "hearing_srp_frontend"), Frontend.SELD: ("seld_frontend", "hearing_seld_frontend"), Frontend.CALL: ("call_frontend", "hearing_call_frontend")}
 
 
@@ -36,7 +38,7 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
         if not key.startswith(_PREFIX) or key == _POLICY_KEY or not raw:
             continue
         name = key.removeprefix(_PREFIX)
-        param = Param[float](name, 0.0) if name.startswith(BeliefGroup.EMISSION_DB_PREFIX) else params.get(name)
+        param = Param[float](name, 0.0, f"Emission level of {name.removeprefix(BeliefGroup.EMISSION_DB_PREFIX)} in dB.") if name.startswith(BeliefGroup.EMISSION_DB_PREFIX) else params.get(name)
         if param is None:
             raise ValueError(f"{key} is not a hearing node parameter")
         if name.startswith(BeliefGroup.EMISSION_DB_PREFIX) and name.removeprefix(BeliefGroup.EMISSION_DB_PREFIX) not in detect_kinds:
@@ -59,11 +61,11 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
 def generate_launch_description() -> launch.LaunchDescription:
     return launch.LaunchDescription(
         [
-            launch.actions.DeclareLaunchArgument("env.ns", default_value="/arena/env_0", description="Env namespace, the hearing nodes live in it."),
-            launch.actions.DeclareLaunchArgument("tg_node", default_value="arena_env_node", description="Task generator node name, the auditory topics live below it."),
-            launch.actions.DeclareLaunchArgument("frontend", default_value=Frontend.BUS.value, choices=[frontend.value for frontend in Frontend], description="Detection source: bus is the simulator bus, srp the onset + GCC-PHAT front-end on any array, seld the SELDnet front-end on the array its weights were trained on, call the call detector with a map-frame heading on a 16 kHz array."),
-            launch.actions.DeclareLaunchArgument("policy", default_value="full", choices=list(_POLICIES), description="Mask layers: belief only, plus the corner listen cap, plus yield."),
-            *declare_launch_arguments(all_params(), prefix=_PREFIX),
+            LaunchArgument("env.ns", default_value="/arena/env_0", description="Env namespace."),
+            LaunchArgument("tg_node", default_value="arena_env_node", description="Task generator node name."),
+            LaunchArgument("frontend", default_value=Frontend.BUS.value, choices=[frontend.value for frontend in Frontend], description="Detection source."),
+            LaunchArgument("policy", default_value="full", choices=list(_POLICIES), description="Mask layers."),
+            *(LaunchArgument.from_param(param, prefix=_PREFIX) for name, param in all_params().items() if name not in _PLUMBING),
             launch.actions.OpaqueFunction(function=_hearing),
         ]
     )

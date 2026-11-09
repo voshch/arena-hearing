@@ -34,7 +34,7 @@ import numpy as np
 import tf2_ros
 from arena_rclpy_mixins import ArenaMixinNode, qos
 from arena_rclpy_mixins.lazy import LazyPublisher
-from arena_rclpy_mixins.param_groups import configure
+from arena_rclpy_mixins.params import configure
 from arena_rclpy_mixins.transforms import ThreadedTransformListener
 from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import SoundDetection

@@ -26,7 +26,7 @@ import attrs
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
-from arena_rclpy_mixins.param_groups import PerRole, configure
+from arena_rclpy_mixins.params import configure
 from arena_robots.audio import dbfs_from_rms
 from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 
@@ -454,10 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     episode = load_episode(args.episode_dir, args.prefix)
     if args.frontend == Frontend.SELD.value:
         files = weights.ensure()
-        det_threshold = SeldGroup.DET_THRESHOLD.default
-        torch_threads = SeldGroup.TORCH_THREADS.default
-        assert not isinstance(det_threshold, PerRole) and not isinstance(torch_threads, PerRole)
-        frontend = SeldFrontend(files["checkpoint"], files["scaler"], weights.classes(library), device=args.device, det_threshold=det_threshold, torch_threads=torch_threads)
+        frontend = SeldFrontend(files["checkpoint"], files["scaler"], weights.classes(library), device=args.device, det_threshold=SeldGroup.DET_THRESHOLD.parsed_default(), torch_threads=SeldGroup.TORCH_THREADS.parsed_default())
         detections = seld_detections(episode, frontend)
     else:
         detections = label_detections(episode, library)
@@ -465,9 +462,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config = configure(BeliefConfig, BeliefGroup, level_range_enabled=math.isfinite(level_offset_db), event_rate_hz=NOMINAL_EVENT_RATE_HZ[Frontend.SELD.value], emission_db=emission_levels(library))
     result = replay(episode, detections, config, level_offset_db, tolerance_m=args.tolerance_m)
-    belief_threshold = PolicyGroup.BELIEF_THRESHOLD.default
-    assert not isinstance(belief_threshold, PerRole)
-    _summary(result, belief_threshold)
+    _summary(result, PolicyGroup.BELIEF_THRESHOLD.parsed_default())
 
     stamps = pick_timestamps(result)
     if not stamps:
