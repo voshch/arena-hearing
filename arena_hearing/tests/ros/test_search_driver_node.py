@@ -271,3 +271,27 @@ def test_a_goal_replaced_by_a_newer_one_is_left_to_nav2(driver) -> None:
         server.destroy()
         server_node.destroy_node()
     assert cancelled == []
+
+
+def test_a_reset_forgets_the_heard_positions(driver) -> None:
+    from std_msgs.msg import Bool
+
+    node = driver(**{"driver.stop_rule": "three_positions"})
+    robot = _bind(node)
+    _place(node, robot, 1.0, 2.0)
+    node._cb_detection(robot, _detection(robot, "speech", 0.25))
+    assert robot.positions.count == 1
+    node._cb_reset(Bool(data=True))
+    assert robot.positions.count == 0
+
+
+def test_calls_heard_from_one_spot_are_one_position(driver) -> None:
+    node = driver()
+    robot = _bind(node)
+    _place(node, robot, 1.0, 2.0)
+    node._cb_detection(robot, _detection(robot, "speech", 0.25))
+    node._cb_detection(robot, _detection(robot, "speech", 0.5))
+    _place(node, robot, 6.0, 2.0)
+    node._cb_detection(robot, _detection(robot, "speech", 0.5))
+    assert robot.calls == 3
+    assert robot.positions.count == 2
