@@ -207,6 +207,17 @@ def test_the_same_creep_without_a_speed_limit_gives_its_goal_up() -> None:
     assert driver.state(50.0)["goals_failed"] >= 1
 
 
+def test_a_frontier_cluster_whose_goal_was_visited_still_gives_a_goal() -> None:
+    grid = _grid(left_unknown=False)
+    driver = _driver()
+    first = driver.step(_tick(0.0, NavStatus.IDLE, grid=grid))
+    assert isinstance(first, Send)
+    second = driver.step(_tick(1.0, NavStatus.SUCCEEDED, grid=grid, robot_xy=first.xy))
+    assert isinstance(second, Send)
+    assert second.xy != first.xy
+    assert driver.phase is Phase.DRIVE
+
+
 def test_a_frontier_through_the_robot_gets_a_goal_off_the_robot() -> None:
     grid = _grid(left_unknown=False)
     robot = (5.45, 1.95)

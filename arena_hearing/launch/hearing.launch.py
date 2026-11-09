@@ -1,4 +1,4 @@
-"""Robot hearing layer of one env: belief grid, speed-filter policy, the srp or seld front-end and, with driver.enabled, the search driver, ``robot.hearing.<key>`` forwarded as ``<key>``."""
+"""Robot hearing layer of one env: belief grid, speed-filter policy, the srp, seld or call front-end and, with driver.enabled, the search driver, ``robot.hearing.<key>`` forwarded as ``<key>``."""
 
 import launch
 import launch.actions
@@ -12,7 +12,7 @@ from arena_hearing.params import BeliefGroup, DriverGroup, Frontend, all_params
 _PREFIX = "robot.hearing."
 _POLICY_KEY = f"{_PREFIX}policy"
 _POLICIES = ("belief", "listen", "full")
-_FRONTEND_NODES = {Frontend.SRP: ("srp_frontend", "hearing_srp_frontend"), Frontend.SELD: ("seld_frontend", "hearing_seld_frontend")}
+_FRONTEND_NODES = {Frontend.SRP: ("srp_frontend", "hearing_srp_frontend"), Frontend.SELD: ("seld_frontend", "hearing_seld_frontend"), Frontend.CALL: ("call_frontend", "hearing_call_frontend")}
 
 
 def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEntity]:
@@ -27,7 +27,7 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
         "policy.listen.enabled": policy != "belief",
         "policy.yield.enabled": policy == "full",
     }
-    if frontend is Frontend.SRP:
+    if frontend in (Frontend.SRP, Frontend.CALL):
         derived["belief.kinds"] = ["onset"]
         derived["driver.kinds"] = ["onset"]
     forwarded: dict[str, object] = {}
@@ -61,7 +61,7 @@ def generate_launch_description() -> launch.LaunchDescription:
         [
             launch.actions.DeclareLaunchArgument("env.ns", default_value="/arena/env_0", description="Env namespace, the hearing nodes live in it."),
             launch.actions.DeclareLaunchArgument("tg_node", default_value="arena_env_node", description="Task generator node name, the auditory topics live below it."),
-            launch.actions.DeclareLaunchArgument("frontend", default_value=Frontend.BUS.value, choices=[frontend.value for frontend in Frontend], description="Detection source: bus is the simulator bus, srp the onset + GCC-PHAT front-end on any array, seld the SELDnet front-end on the array its weights were trained on."),
+            launch.actions.DeclareLaunchArgument("frontend", default_value=Frontend.BUS.value, choices=[frontend.value for frontend in Frontend], description="Detection source: bus is the simulator bus, srp the onset + GCC-PHAT front-end on any array, seld the SELDnet front-end on the array its weights were trained on, call the call detector with a map-frame heading on a 16 kHz array."),
             launch.actions.DeclareLaunchArgument("policy", default_value="full", choices=list(_POLICIES), description="Mask layers: belief only, plus the corner listen cap, plus yield."),
             *declare_launch_arguments(all_params(), prefix=_PREFIX),
             launch.actions.OpaqueFunction(function=_hearing),

@@ -37,17 +37,19 @@ from std_msgs.msg import Bool, String
 from arena_hearing.belief_node import yaw_from_quat
 from arena_hearing.constants import BELIEF_GRID, MAP, NAVIGATE_TO_POSE, SEARCH_STATE, SPEED_LIMIT, STATE_RESETTING, detections, plan
 from arena_hearing.fleet import FleetRobots
+from arena_hearing.heard import PositionTracker
 from arena_hearing.params import Configuration, GoalRuleName, StopRuleName
 from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, SearchDriver, Send, Tick
 from arena_hearing.search.frontiers import MapGrid
 from arena_hearing.search.goals import BeliefGoal, BeliefMap, GoalRule, Heard, NearestGoal
-from arena_hearing.search.stops import EveryGoalStop, FixedBendStop, NeverStop, OnCallStop, StopRule
+from arena_hearing.search.stops import EveryGoalStop, FixedBendStop, FixedStop, NeverStop, OnCallStop, RoomEntryStop, StopRule, ThreePositionsStop
 
 
 @attrs.define(eq=False)
 class _Robot:
     binding: RobotBinding
     driver: SearchDriver
+    positions: PositionTracker
     action: str
     client: ActionClient
     pub_state: Publisher
@@ -112,6 +114,12 @@ class SearchDriverNode(ArenaMixinNode):
                 return OnCallStop()
             case StopRuleName.FIXED_BEND:
                 return FixedBendStop(lookahead_m=d.BEND_LOOKAHEAD_M.value, stop_before_m=d.BEND_STOP_BEFORE_M.value, hysteresis_m=d.BEND_HYSTERESIS_M.value)
+            case StopRuleName.FIXED:
+                return FixedStop(trigger_m=d.FIXED_TRIGGER_M.value, lateral_m=d.FIXED_LATERAL_M.value, path_horizon_m=d.FIXED_PATH_HORIZON_M.value, rearm_m=d.FIXED_REARM_M.value, door_max_width_m=d.FIXED_DOOR_MAX_WIDTH_M.value)
+            case StopRuleName.ROOM_ENTRY:
+                return RoomEntryStop(radius_m=d.ROOM_ENTRY_RADIUS_M.value, rearm_m=d.ROOM_ENTRY_REARM_M.value, door_max_width_m=d.ROOM_ENTRY_DOOR_MAX_WIDTH_M.value)
+            case StopRuleName.THREE_POSITIONS:
+                return ThreePositionsStop(count=d.THREE_POSITIONS_COUNT.value)
 
     def _start(self, binding: RobotBinding) -> _Robot:
         scope = f"{self._tg}/{binding.name}"
@@ -119,6 +127,7 @@ class SearchDriverNode(ArenaMixinNode):
         robot = _Robot(
             binding=binding,
             driver=SearchDriver(self._goal_rule(), self._stop_rule(), configure(DriverConfig, self.conf.Driver)),
+            positions=PositionTracker(self.conf.Driver.THREE_POSITIONS_SEPARATION_M.value),
             action=action,
             client=ActionClient(self, NavigateToPose, action),
             pub_state=self.create_publisher(String, f"{scope}/{SEARCH_STATE}", qos.latched()),
@@ -182,6 +191,7 @@ class SearchDriverNode(ArenaMixinNode):
         robot.heard = Heard(robot_xy=(pose[0], pose[1]), bearing_rad=azimuth + frame_yaw)
         robot.heard_t = self._now()
         robot.calls += 1
+        robot.positions.hear((pose[0], pose[1]))
 
     def _cb_reset(self, msg: Bool) -> None:
         self._resetting = msg.data
@@ -192,6 +202,7 @@ class SearchDriverNode(ArenaMixinNode):
             robot.driver.reset()
             robot.grid = None
             robot.heard, robot.heard_t, robot.calls = None, -math.inf, 0
+            robot.positions.reset()
             robot.plan_xy = None
 
     def _now(self) -> float:
@@ -214,7 +225,7 @@ class SearchDriverNode(ArenaMixinNode):
         now = self._now()
         if pose is not None and robot.client.server_is_ready():
             fresh = now - robot.heard_t <= self.conf.Driver.HEARD_MAX_AGE_S.value
-            tick = Tick(now=now, robot_xy=(pose[0], pose[1]), grid=robot.grid, belief=robot.belief, heard=robot.heard if fresh else None, calls=robot.calls, plan_xy=robot.plan_xy, status=robot.status, limited=robot.limited)
+            tick = Tick(now=now, robot_xy=(pose[0], pose[1]), grid=robot.grid, belief=robot.belief, heard=robot.heard if fresh else None, calls=robot.calls, plan_xy=robot.plan_xy, status=robot.status, limited=robot.limited, heard_positions=robot.positions.count)
             action = robot.driver.step(tick)
             if isinstance(action, Send):
                 self._send(robot, action.xy, math.atan2(action.xy[1] - pose[1], action.xy[0] - pose[0]))

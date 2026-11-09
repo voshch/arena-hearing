@@ -37,6 +37,7 @@ setup(
             'hearing_policy = arena_hearing.policy_node:main',
             'hearing_seld_frontend = arena_hearing.seld_frontend_node:main',
             'hearing_srp_frontend = arena_hearing.srp_frontend_node:main',
+            'hearing_call_frontend = arena_hearing.call_frontend_node:main',
             'hearing_setup = arena_hearing.weights:main',
             'hearing_audio_replay = arena_hearing.audio_replay:main',
             'hearing_search_driver = arena_hearing.search_driver_node:main',
