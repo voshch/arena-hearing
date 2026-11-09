@@ -42,8 +42,8 @@ class DiagnosticsGroup(ParamGroup):
 
 
 class HearingGroup(ParamGroup):
-    FRONTEND = Param[Frontend]("hearing.frontend", Frontend.BUS, "Detection front-end, bus, srp or seld, set by the launch file.")
-    TG_NODE = Param[str]("hearing.tg_node", "arena_env_node", "Task generator node name the auditory topics live below, set by the launch file.")
+    FRONTEND = Param[Frontend]("hearing.frontend", Frontend.BUS, "Detection front-end.")
+    TG_NODE = Param[str]("hearing.tg_node", "arena_env_node", "Task generator node the auditory topics live below.")
 
 
 class BeliefGroup(ParamGroup):
@@ -65,7 +65,7 @@ class BeliefGroup(ParamGroup):
     RANGE_SIGMA_FRAC = Param[float]("belief.range_sigma_frac", 0.35, "Relative width of the level range estimate.", constraint=Range(lo=0.0, lo_open=True))
     RANGE_FLOOR_WEIGHT = Param[float]("belief.range_floor_weight", 0.15, "Weight a bearing keeps outside its level range estimate.", constraint=Range(lo=0.0))
     EVENT_MASS = Param[float]("belief.event_mass", 1.0, "Mass one detection adds to the belief grid.", constraint=Range(lo=0.0, lo_open=True))
-    EVENT_RATE_HZ = Param[float]("belief.event_rate_hz", 2.0, "Detection rate in Hz of the front-end, defaults per front-end in the launch file.", constraint=Range(lo=0.0, lo_open=True))
+    EVENT_RATE_HZ = Param[float]("belief.event_rate_hz", 2.0, "Detection rate in Hz of the front-end.", constraint=Range(lo=0.0, lo_open=True))
     MASS_FULL_SCALE = Param[float]("belief.mass_full_scale", 0.0, "Mass that maps to full belief (0 = the largest cell mass).", constraint=Range(lo=0.0))
     KINDS = Param[tuple[str, ...]]("belief.kinds", ("footstep", "speech"), "Detection kinds the belief grid accepts.", parse=names)
     MIN_LEVEL_DB = Param[float]("belief.min_level_db", -1e9, "Level in dB below which a detection is ignored.")
@@ -122,8 +122,8 @@ class StopRuleName(enum.StrEnum):
 
 class DriverGroup(ParamGroup):
     ENABLED = Param[bool]("driver.enabled", False, "Start the search driver: frontier goals on the robot's SLAM map, sent to its navigate_to_pose.")
-    GOAL_RULE = Param[GoalRuleName]("driver.goal_rule", GoalRuleName.NEAREST, "Search goal rule, nearest frontier (no audio) or belief.")
-    STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, "Search stop rule: never, every_goal, on_call, fixed_bend, fixed, room_entry or three_positions.")
+    GOAL_RULE = Param[GoalRuleName]("driver.goal_rule", GoalRuleName.NEAREST, "Search goal rule.")
+    STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, "Search stop rule.")
     LISTEN_S = Param[float]("driver.listen_s", 3.0, "Seconds the search driver halts to listen per stop.", constraint=Range(lo=0.0))
     SNAP = Param[bool]("driver.snap", False, "Snap a heard call onto the SLAM-map opening or frontier it points at (belief rule).")
     REPLAN_ON_CALL = Param[bool]("driver.replan_on_call", True, "Ask the goal rule again on every new call while driving and switch to the goal it picks.")
