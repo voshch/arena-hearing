@@ -22,7 +22,6 @@ from arena_rclpy_mixins.params import configure
 from arena_rclpy_mixins.transforms import ThreadedTransformListener
 from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import SoundDetection
-from arena_runtime_msgs.msg import LockstepChannel
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import OccupancyGrid, Path
@@ -80,7 +79,7 @@ class SearchDriverNode(ArenaMixinNode):
         self._rate = d.RATE_HZ.value
         self._resetting = False
         self.create_subscription(Bool, f"{self._tg}/{STATE_RESETTING}", self._cb_reset, qos.latched())
-        self._robots = FleetRobots(self, self._tg, start=self._start, stop=self._stop, channel=self._channel)
+        self._robots = FleetRobots(self, self._tg, start=self._start, stop=self._stop, channel=None)
         self.create_timer(1.0 / self._rate, self._on_timer)
         self.get_logger().info(f"hearing_search_driver up: goal {d.GOAL_RULE.value} stop {d.STOP_RULE.value} listen {d.LISTEN_S.value} s snap {d.SNAP.value}")
 
@@ -148,9 +147,6 @@ class SearchDriverNode(ArenaMixinNode):
             self.destroy_subscription(sub)
         self.destroy_publisher(robot.pub_state)
         robot.client.destroy()
-
-    def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"search/{robot.binding.name}", topic=robot.pub_state.topic_name, type="std_msgs/msg/String", period_s=1.1 / self._rate, hard=False)
 
     def _cb_map(self, robot: _Robot, msg: OccupancyGrid) -> None:
         if self._resetting:

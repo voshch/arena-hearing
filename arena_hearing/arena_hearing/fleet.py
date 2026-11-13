@@ -1,4 +1,4 @@
-"""Per-robot state of a hearing node, kept in step with the robot fleet, with one hard lockstep channel per robot."""
+"""Per-robot state of a hearing node, kept in step with the robot fleet, with at most one lockstep channel per robot."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def heartbeat(end_ns: int, frame_id: str) -> LockstepHeartbeat:
 class FleetRobots[R]:
     """Fleet robots in fleet order, each with the state ``start`` returns. ``stop`` releases a robot that left the fleet."""
 
-    def __init__(self, node: ArenaMixinNode, tg: str, *, start: Callable[[RobotBinding], R], stop: Callable[[R], None], channel: Callable[[R], LockstepChannel]) -> None:
+    def __init__(self, node: ArenaMixinNode, tg: str, *, start: Callable[[RobotBinding], R], stop: Callable[[R], None], channel: Callable[[R], LockstepChannel] | None) -> None:
         self._node = node
         self._env = node.resolve_topic_name(tg)
         self._start = start
@@ -49,8 +49,9 @@ class FleetRobots[R]:
         robots = {name: self._robots[name] if name in self._robots else self._start(binding) for name, binding in bindings.items()}
         changed = list(robots) != list(self._robots)
         self._robots = robots
-        if changed and self._lockstep:
-            asyncio.run_coroutine_threadsafe(self._register([self._channel(robot) for robot in robots.values()]), self._node.event_loop)
+        if changed and self._lockstep and self._channel is not None:
+            channel = self._channel
+            asyncio.run_coroutine_threadsafe(self._register([channel(robot) for robot in robots.values()]), self._node.event_loop)
 
     async def _register(self, channels: list[LockstepChannel]) -> None:
         async with self._lock:

@@ -49,12 +49,13 @@ Every detection source publishes `arena_robots_msgs/SoundDetection` on
 | `call` | `hearing_call_frontend`, band-flux call detection over `raw_array` and `stem_motor`, map-frame headings, kind `onset` |
 
 Every hearing node covers every fleet robot of its env: it follows
-`state/robots`, keeps its state per robot and registers one hard lockstep
-channel per robot. `hearing_belief` turns each robot's detections into a
-decaying pedestrian-likelihood grid (`hearing/belief_grid`,
-`hearing/belief_wedges`). `hearing_policy` reads it and is the single writer
-of the robot's Nav2 `SpeedFilter` mask (`hearing/speed_filter_mask`) and its
-`CostmapFilterInfo` (`hearing/costmap_filter_info`).
+`state/robots`, keeps its state per robot and, except the search driver,
+registers one hard lockstep channel per robot. `hearing_belief` turns each
+robot's detections into a decaying pedestrian-likelihood grid
+(`hearing/belief_grid`, `hearing/belief_wedges`). `hearing_policy` reads it
+and is the single writer of the robot's Nav2 `SpeedFilter` mask
+(`hearing/speed_filter_mask`) and its `CostmapFilterInfo`
+(`hearing/costmap_filter_info`).
 
 The front-ends read the array geometry off each `AudioFrame`: `srp` fits
 GCC-PHAT over every pair of the microphone positions the frame declares, any
