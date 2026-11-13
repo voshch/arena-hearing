@@ -32,6 +32,10 @@ def hearing_heartbeat(robot: str) -> str:
     return f"{robot}/lockstep/hearing"
 
 
+def policy_heartbeat(robot: str) -> str:
+    return f"{robot}/lockstep/policy"
+
+
 def recorded_topics(frontends: tuple[str, ...]) -> tuple[RecordedTopicRow, ...]:
     """Recordable topics as (key, topic template, msg type, robot scoped, throttled, transient local, reliable, depth, recorded)."""
     return (

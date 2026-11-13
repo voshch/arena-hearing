@@ -18,6 +18,7 @@ through the bend at listen speed, never full speed, so a pedestrian who stopped 
 turn is not driven into. Bends are map-frame points with hysteresis, so a replanned path does
 not re-arm the same corner. Every output lives below ``<tg_node>/<robot>``: the mask, its
 ``CostmapFilterInfo`` for the robot's SpeedFilter, and the state as JSON on ``hearing/policy_state``.
+The lockstep heartbeat on ``lockstep/policy`` beats every tick, also while map, belief or pose is missing.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ from arena_rclpy_mixins.params import configure
 from arena_rclpy_mixins.transforms import ThreadedTransformListener
 from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import SoundDetection
-from arena_runtime_msgs.msg import LockstepChannel
+from arena_runtime_msgs.msg import LockstepChannel, LockstepHeartbeat
 from geometry_msgs.msg import Point
 from nav2_msgs.msg import CostmapFilterInfo
 from nav_msgs.msg import OccupancyGrid, Path
@@ -48,9 +49,9 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 from arena_hearing.belief_grid import speed_mask_from_belief
 from arena_hearing.belief_node import yaw_from_quat
-from arena_hearing.constants import BELIEF_GRID, COSTMAP_FILTER_INFO, MAP, POLICY_MARKERS, POLICY_STATE, SPEED_FILTER_MASK, STATE_RESETTING, detections, plan
+from arena_hearing.constants import BELIEF_GRID, COSTMAP_FILTER_INFO, MAP, POLICY_MARKERS, POLICY_STATE, SPEED_FILTER_MASK, STATE_RESETTING, detections, plan, policy_heartbeat
 from arena_hearing.corners import BlindBend, find_blind_bend
-from arena_hearing.fleet import FleetRobots
+from arena_hearing.fleet import HEARTBEAT_TYPE, FleetRobots, heartbeat
 from arena_hearing.params import Configuration
 from arena_hearing.policy import LevelTrend, PolicyConfig, State, YieldMachine, compose_masks, mass_split, paint_lane
 
@@ -68,6 +69,7 @@ class _Robot:
     pub_state: Publisher
     pub_markers: LazyPublisher[MarkerArray]
     pub_filter_info: Publisher
+    pub_beat: Publisher
     subs: list[Subscription] = attrs.Factory(list)
     belief: OccupancyGrid | None = None
     plan_xy: np.ndarray | None = None
@@ -123,6 +125,7 @@ class PolicyNode(ArenaMixinNode):
             pub_state=self.create_publisher(String, f"{scope}/{POLICY_STATE}", qos.latched()),
             pub_markers=LazyPublisher(self.create_publisher(MarkerArray, f"{scope}/{POLICY_MARKERS}", qos.reliable(1))),
             pub_filter_info=self.create_publisher(CostmapFilterInfo, f"{scope}/{COSTMAP_FILTER_INFO}", qos.latched()),
+            pub_beat=self.create_publisher(LockstepHeartbeat, f"{self._tg}/{policy_heartbeat(binding.name)}", qos.reliable(10)),
         )
         robot.subs = [
             self.create_subscription(OccupancyGrid, f"{scope}/{BELIEF_GRID}", functools.partial(self._cb_belief, robot), qos.reliable(1)),
@@ -138,11 +141,11 @@ class PolicyNode(ArenaMixinNode):
     def _stop(self, robot: _Robot) -> None:
         for sub in robot.subs:
             self.destroy_subscription(sub)
-        for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info):
+        for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info, robot.pub_beat):
             self.destroy_publisher(pub)
 
     def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"policy/{robot.binding.name}", topic=robot.pub_mask.topic_name, type="nav_msgs/msg/OccupancyGrid", period_s=1.1 / self._rate, hard=True)
+        return LockstepChannel(name=f"policy/{robot.binding.name}", topic=robot.pub_beat.topic_name, type=HEARTBEAT_TYPE, period_s=1.1 / self._rate, hard=True)
 
     def _cb_map(self, msg: OccupancyGrid) -> None:
         self._map = msg
@@ -227,10 +230,11 @@ class PolicyNode(ArenaMixinNode):
         robot.bend = found
 
     def _on_timer(self) -> None:
-        if self._map is None:
-            return
+        now_ns = self.get_clock().now().nanoseconds
         for robot in self._robots:
-            self._tick(robot)
+            if self._map is not None:
+                self._tick(robot)
+            robot.pub_beat.publish(heartbeat(now_ns, self._map_conf.FRAME.value))
 
     def _tick(self, robot: _Robot) -> None:
         if robot.belief is None:

@@ -202,11 +202,12 @@ def test_start_latches_a_percent_speed_filter_info_on_the_mask(policy) -> None:
     assert info.filter_mask_topic.endswith("/r0/hearing/speed_filter_mask")
 
 
-def test_channel_declares_a_hard_mask_heartbeat_at_the_publish_rate(policy) -> None:
+def test_channel_declares_a_hard_heartbeat_at_the_publish_rate(policy) -> None:
     node = policy(**{"policy.publish_rate_hz": 20.0})
     robot = _bind(node)
     channel = node._channel(robot)
-    assert (channel.name, channel.topic, channel.type) == ("policy/r0", robot.pub_mask.topic_name, "nav_msgs/msg/OccupancyGrid")
+    assert (channel.name, channel.topic, channel.type) == ("policy/r0", robot.pub_beat.topic_name, "arena_runtime_msgs/msg/LockstepHeartbeat")
+    assert channel.topic.endswith("/r0/lockstep/policy")
     assert channel.period_s == pytest.approx(1.1 / 20.0)
     assert channel.hard
 
@@ -220,7 +221,7 @@ def test_robot_leaving_the_fleet_releases_its_topics(policy) -> None:
     assert list(node._robots) == []
     publishers = list(node.publishers)
     subscriptions = list(node.subscriptions)
-    for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info):
+    for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info, robot.pub_beat):
         assert pub not in publishers
     for sub in robot.subs:
         assert sub not in subscriptions
@@ -283,6 +284,24 @@ def test_timer_waits_for_map_belief_and_pose(policy) -> None:
     _place(node, robot, 7.0, 1.0)
     node._on_timer()
     assert robot.last_tick is not None
+
+
+def test_timer_beats_the_heartbeat_while_map_belief_and_pose_are_missing(policy) -> None:
+    import rclpy
+    from arena_rclpy_mixins import qos
+    from arena_runtime_msgs.msg import LockstepHeartbeat
+
+    node = policy()
+    robot = _bind(node)
+    received: list[LockstepHeartbeat] = []
+    probe = rclpy.create_node(f"beat_probe_{uuid.uuid4().hex[:8]}")
+    try:
+        probe.create_subscription(LockstepHeartbeat, robot.pub_beat.topic_name, received.append, qos.reliable(10))
+        _spin_until(rclpy, [probe], lambda: node._on_timer() or bool(received))
+    finally:
+        probe.destroy_node()
+    assert robot.last_tick is None
+    assert received[-1].header.frame_id == "map"
 
 
 def test_cruise_mask_slows_around_a_belief_blob_and_reports_the_belief_layer(policy) -> None:

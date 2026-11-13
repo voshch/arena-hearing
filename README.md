@@ -136,6 +136,7 @@ robot namespace:
 | in | `<r>/map` | the robot's SLAM map, read by the search driver |
 | out | `<r>/hearing/srp/detections`, `<r>/hearing/seld/detections`, `<r>/hearing/call/detections` | the front-ends |
 | out | `<r>/lockstep/hearing` | front-end heartbeat per robot |
+| out | `<r>/lockstep/policy` | `hearing_policy` heartbeat per robot, every tick |
 | out | `<r>/hearing/belief_grid`, `<r>/hearing/belief_wedges` | RViz, the wedges only while subscribed |
 | out | `<r>/hearing/speed_filter_mask` | `OccupancyGrid`, latched, read by the robot's SpeedFilter |
 | out | `<r>/hearing/costmap_filter_info` | `CostmapFilterInfo`, latched, points the SpeedFilter at the mask |
