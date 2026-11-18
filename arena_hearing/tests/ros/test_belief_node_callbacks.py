@@ -331,18 +331,18 @@ def test_lookup_falls_back_to_the_latest_transform_when_the_stamp_is_not_covered
 
 
 def test_timer_decays_the_mass_by_the_elapsed_time_and_applies_new_parameters(belief) -> None:
-    from rclpy.duration import Duration
+    from arena_rclpy_mixins.Time import Time as SimTime
 
     node = belief(**_standalone())
     (robot,) = _bind(node, ("r0", "jackal"))
     _tf(node, robot.binding.base_frame, 0.0, 0.0, 0.0)
     node._cb_detection(robot, _detection("map", 0.0))
     before = robot.grid.mass.copy()
-    started = node.get_clock().now() - Duration(seconds=2.0)
+    started = node.sim_time - SimTime.from_float(2.0)
     node._last_update = started
     node._on_timer()
     tau = float(robot.grid.config.tau_s)
-    elapsed = (node._last_update - started).nanoseconds * 1e-9
+    elapsed = (node._last_update - started).to_seconds()
     ratio = float(robot.grid.mass.sum() / before.sum())
     assert elapsed >= 2.0
     assert ratio == pytest.approx(math.exp(-elapsed / tau), rel=1e-3)

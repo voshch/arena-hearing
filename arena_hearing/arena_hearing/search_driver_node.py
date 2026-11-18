@@ -202,7 +202,7 @@ class SearchDriverNode(ArenaMixinNode):
             robot.plan_xy = None
 
     def _now(self) -> float:
-        return self.get_clock().now().nanoseconds * 1e-9
+        return self.sim_time.to_seconds()
 
     def _pose(self, frame: str) -> tuple[float, float, float] | None:
         try:

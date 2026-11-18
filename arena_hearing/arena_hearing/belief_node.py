@@ -118,7 +118,7 @@ class BeliefNode(ArenaMixinNode):
         self._config = self._belief_config()
         self._layout: _Layout | None = None
         self._map_info: MapMetaData | None = None
-        self._last_update = self.get_clock().now()
+        self._last_update = self.sim_time
         self._tg = self.conf.Hearing.TG_NODE.value
         self._frontend = self.conf.Hearing.FRONTEND.value
         self._markers_enabled = self.conf.Belief.MARKERS_ENABLED.value
@@ -291,13 +291,13 @@ class BeliefNode(ArenaMixinNode):
             received_db=level if math.isfinite(level) else None,
             bearing_frame="map",
         )
-        robot.wedges.append(_Wedge(id=robot.next_wedge_id, t_ns=self.get_clock().now().nanoseconds, x=x, y=y, theta=info["theta"], range_m=info["range_m"], kind=kind))
+        robot.wedges.append(_Wedge(id=robot.next_wedge_id, t_ns=self.sim_time.to_nanoseconds(), x=x, y=y, theta=info["theta"], range_m=info["range_m"], kind=kind))
         robot.next_wedge_id += 1
 
     def _on_timer(self) -> None:
         self._config = self._belief_config()
-        now = self.get_clock().now()
-        dt = (now - self._last_update).nanoseconds * 1e-9
+        now = self.sim_time
+        dt = (now - self._last_update).to_seconds()
         self._last_update = now
         stamp = now.to_msg()
         frame = self._map_conf.FRAME.value
@@ -308,8 +308,8 @@ class BeliefNode(ArenaMixinNode):
             robot.grid.decay(dt)
             robot.pub_belief.publish(self._as_grid(robot.grid, stamp, frame))
             if robot.pub_markers is not None:
-                self._retire_wedges(robot, now.nanoseconds)
-                if not robot.pub_markers.publish(lambda robot=robot: self._wedge_markers(robot, now.nanoseconds, stamp, frame)):
+                self._retire_wedges(robot, now.to_nanoseconds())
+                if not robot.pub_markers.publish(lambda robot=robot: self._wedge_markers(robot, now.to_nanoseconds(), stamp, frame)):
                     robot.retired.clear()
 
     @staticmethod

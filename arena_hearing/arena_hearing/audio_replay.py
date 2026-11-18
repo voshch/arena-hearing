@@ -17,16 +17,16 @@ import time
 
 import numpy as np
 import rclpy
+from arena_rclpy_mixins.Time import TimeNode
 from arena_robots.audio import ArraySpec, ArrayStream, array_stream, load_array_spec
 from arena_robots_msgs.msg import AudioFrame
 from geometry_msgs.msg import Point
-from rclpy.node import Node
 
 from arena_hearing.params import HearingGroup
 from arena_hearing.seld import load_wav
 
 
-class AudioReplay(Node):
+class AudioReplay(TimeNode):
     def __init__(self, wav: str, topic: str, block: int, speed: float, frame_id: str, loop: bool, array: ArraySpec | None) -> None:
         super().__init__("audio_replay")
         audio, self.fs = load_wav(wav)
@@ -47,7 +47,7 @@ class AudioReplay(Node):
     def frame(self, chunk: np.ndarray) -> AudioFrame:
         """One block as an AudioFrame stamped now, carrying the declared array."""
         msg = AudioFrame()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = self.sim_time.to_msg()
         msg.header.frame_id = self.frame_id
         msg.sample_rate = int(self.fs)
         msg.channel_count = int(chunk.shape[1])

@@ -133,7 +133,7 @@ class PolicyNode(ArenaMixinNode):
             self.create_subscription(SoundDetection, f"{self._tg}/{detections(binding.name, self._frontend)}", functools.partial(self._cb_detection, robot), qos.reliable(50)),
         ]
         info = CostmapFilterInfo(type=SPEED_FILTER_PERCENT, filter_mask_topic=robot.pub_mask.topic_name, base=0.0, multiplier=1.0)
-        info.header.stamp = self.get_clock().now().to_msg()
+        info.header.stamp = self.sim_time.to_msg()
         robot.pub_filter_info.publish(info)
         self.get_logger().info(f"hearing_policy bound to {binding.name}: base {binding.base_frame}, max {robot.max_mps:.2f} m/s, mask {robot.pub_mask.topic_name!r}")
         return robot
@@ -182,7 +182,7 @@ class PolicyNode(ArenaMixinNode):
         robot.last_event_t = t
 
     def _now(self) -> float:
-        return self.get_clock().now().nanoseconds * 1e-9
+        return self.sim_time.to_seconds()
 
     def _robot_pose(self, robot: _Robot) -> tuple[float, float, float] | None:
         try:
@@ -230,7 +230,7 @@ class PolicyNode(ArenaMixinNode):
         robot.bend = found
 
     def _on_timer(self) -> None:
-        now_ns = self.get_clock().now().nanoseconds
+        now_ns = self.sim_time.to_nanoseconds()
         for robot in self._robots:
             if self._map is not None:
                 self._tick(robot)
@@ -286,7 +286,7 @@ class PolicyNode(ArenaMixinNode):
 
         mask = compose_masks(*layers)
         out = OccupancyGrid()
-        out.header.stamp = self.get_clock().now().to_msg()
+        out.header.stamp = self.sim_time.to_msg()
         out.header.frame_id = self._map_conf.FRAME.value
         out.info = info
         out.data = array.array("b", np.ascontiguousarray(mask, dtype=np.int8).tobytes())
@@ -324,7 +324,7 @@ class PolicyNode(ArenaMixinNode):
             return
         arr = MarkerArray()
         frame = self._map_conf.FRAME.value
-        stamp = self.get_clock().now().to_msg()
+        stamp = self.sim_time.to_msg()
         for mid, (pts, color) in enumerate(((None if bend is None else bend.approach_xy, ColorRGBA(r=0.2, g=0.6, b=1.0, a=0.6)), (None if bend is None else bend.hold_xy, ColorRGBA(r=1.0, g=0.3, b=0.2, a=0.8)))):
             m = Marker()
             m.header.frame_id, m.header.stamp, m.ns, m.id = frame, stamp, "hearing_policy", mid
