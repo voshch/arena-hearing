@@ -73,7 +73,7 @@ to dB SPL with the MEMS sensitivity the frame carries.
 both below the robot namespace) into every robot's Nav2 parameters:
 
 ```bash
-export ARENA_WORLD_PATH=$ARENA_DATA_DIR/assets/public/benchmarks/suites/acoustics/worlds
+export ARENA_WORLD_PATH=$ARENA_DATA_DIR/assets/arena-public/suites/acoustics/worlds
 arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
     task.robots:=scenario task.obstacles:=scenario \
     task.scenario.file:=hearing__world-acoustics_bend_narrow_O__robot-moving__pedestrians-1__ends-a-to-b \
