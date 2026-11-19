@@ -22,7 +22,7 @@ import math
 
 import attrs
 import numpy as np
-from arena_rclpy_mixins import ArenaMixinNode, qos
+from arena_rclpy_mixins import ArenaMixinNode, ClockEcho, qos
 from arena_robots.audio import NS_PER_S, ArrayStream, Vec3, array_stream, dbfs_from_rms, dbfs_to_spl
 from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import AudioFrame, SoundDetection
@@ -46,7 +46,7 @@ LAYOUT_TOLERANCE_M = 1e-3
 class _Robot:
     name: str
     pub: Publisher
-    tick_pub: Publisher
+    tick_pub: ClockEcho[LockstepHeartbeat]
     stream: SeldStream
     timeline: AudioTimeline
     sub: Subscription = attrs.field(init=False)
@@ -93,7 +93,7 @@ class SeldFrontendNode(ArenaMixinNode):
         robot = _Robot(
             name=binding.name,
             pub=self.create_publisher(SoundDetection, f"{self._tg}/{detections(binding.name, Frontend.SELD)}", qos.reliable(50)),
-            tick_pub=self.create_publisher(LockstepHeartbeat, f"{self._tg}/{hearing_heartbeat(binding.name)}", qos.reliable(10)),
+            tick_pub=ClockEcho(self, self.create_publisher(LockstepHeartbeat, f"{self._tg}/{hearing_heartbeat(binding.name)}", qos.reliable(10))),
             stream=SeldStream(self._fe, lookahead_frames=self._lookahead_frames),
             timeline=AudioTimeline(self._fe.fs, max_gap_samples=self._fe.window_samples),
         )
@@ -104,10 +104,11 @@ class SeldFrontendNode(ArenaMixinNode):
     def _stop(self, robot: _Robot) -> None:
         self.destroy_subscription(robot.sub)
         self.destroy_publisher(robot.pub)
-        self.destroy_publisher(robot.tick_pub)
+        robot.tick_pub.close()
+        self.destroy_publisher(robot.tick_pub.publisher)
 
     def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"hearing/{robot.name}", topic=robot.tick_pub.topic_name, type=HEARTBEAT_TYPE, period_s=self._fe.label_hop_len / self._fe.fs, hard=True)
+        return LockstepChannel(name=f"hearing/{robot.name}", topic=robot.tick_pub.publisher.topic_name, type=HEARTBEAT_TYPE, period_s=self._fe.label_hop_len / self._fe.fs, hard=True)
 
     def _refusal(self, fs: int, channels: int, names: tuple[str, ...], positions: tuple[Vec3, ...], sensitivity_dbfs_at_94_dbspl: float) -> str:
         """Why the SELDnet weights cannot read a stream of this layout, empty when they can."""

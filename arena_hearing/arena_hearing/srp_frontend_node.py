@@ -7,7 +7,7 @@ import math
 
 import attrs
 import numpy as np
-from arena_rclpy_mixins import ArenaMixinNode, qos
+from arena_rclpy_mixins import ArenaMixinNode, ClockEcho, qos
 from arena_robots.audio import NS_PER_S, ArrayStream, Vec3, array_stream, dbfs_from_rms, dbfs_to_spl
 from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import AudioFrame, SoundDetection
@@ -49,7 +49,7 @@ class _Pipeline:
 class _Robot:
     name: str
     pub: Publisher
-    tick_pub: Publisher
+    tick_pub: ClockEcho[LockstepHeartbeat]
     sub: Subscription = attrs.field(init=False)
     layout: tuple[int, int, tuple[Vec3, ...], float] | None = None
     pipeline: _Pipeline | None = None
@@ -80,7 +80,7 @@ class SrpFrontendNode(ArenaMixinNode):
         robot = _Robot(
             name=binding.name,
             pub=self.create_publisher(SoundDetection, f"{self._tg}/{detections(binding.name, Frontend.SRP)}", qos.reliable(50)),
-            tick_pub=self.create_publisher(LockstepHeartbeat, f"{self._tg}/{hearing_heartbeat(binding.name)}", qos.reliable(10)),
+            tick_pub=ClockEcho(self, self.create_publisher(LockstepHeartbeat, f"{self._tg}/{hearing_heartbeat(binding.name)}", qos.reliable(10))),
         )
         robot.sub = self.create_subscription(AudioFrame, f"{self._tg}/{array_stream(binding.name, ArrayStream.RAW)}", functools.partial(self._cb_audio, robot), self._audio_qos)
         self.get_logger().info(f"srp_frontend: audio {robot.sub.topic_name!r} -> {robot.pub.topic_name!r}")
@@ -89,10 +89,11 @@ class SrpFrontendNode(ArenaMixinNode):
     def _stop(self, robot: _Robot) -> None:
         self.destroy_subscription(robot.sub)
         self.destroy_publisher(robot.pub)
-        self.destroy_publisher(robot.tick_pub)
+        robot.tick_pub.close()
+        self.destroy_publisher(robot.tick_pub.publisher)
 
     def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"hearing/{robot.name}", topic=robot.tick_pub.topic_name, type=HEARTBEAT_TYPE, period_s=self._hop_s, hard=True)
+        return LockstepChannel(name=f"hearing/{robot.name}", topic=robot.tick_pub.publisher.topic_name, type=HEARTBEAT_TYPE, period_s=self._hop_s, hard=True)
 
     def _pipeline(self, fs: int, channels: int, positions: tuple[Vec3, ...], sensitivity_dbfs_at_94_dbspl: float) -> _Pipeline:
         """Raises ValueError when the layout yields no bearing or no level."""

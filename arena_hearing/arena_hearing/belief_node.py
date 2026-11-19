@@ -32,7 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 import attrs
 import numpy as np
 import tf2_ros
-from arena_rclpy_mixins import ArenaMixinNode, qos
+from arena_rclpy_mixins import ArenaMixinNode, ClockEcho, qos
 from arena_rclpy_mixins.lazy import LazyPublisher
 from arena_rclpy_mixins.params import configure
 from arena_rclpy_mixins.transforms import ThreadedTransformListener
@@ -43,7 +43,6 @@ from arena_simulation_setup.tree.assets.sound_catalog import SoundLibrary
 from builtin_interfaces.msg import Time as TimeMsg
 from geometry_msgs.msg import Point, Quaternion
 from nav_msgs.msg import MapMetaData, OccupancyGrid
-from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.time import Time
 from std_msgs.msg import Bool, ColorRGBA, String
@@ -92,7 +91,7 @@ class _Layout:
 @attrs.define(eq=False)
 class _Robot:
     binding: RobotBinding
-    pub_belief: Publisher
+    pub_belief: ClockEcho[OccupancyGrid]
     pub_markers: LazyPublisher[MarkerArray] | None
     sub: Subscription = attrs.field(init=False)
     grid: BeliefGrid | None = None
@@ -161,22 +160,23 @@ class BeliefNode(ArenaMixinNode):
             self.get_logger().warning(f"{binding.error}, poses use {binding.base_frame!r}")
         robot = _Robot(
             binding=binding,
-            pub_belief=self.create_publisher(OccupancyGrid, f"{self._tg}/{binding.name}/{BELIEF_GRID}", qos.reliable(1)),
+            pub_belief=ClockEcho(self, self.create_publisher(OccupancyGrid, f"{self._tg}/{binding.name}/{BELIEF_GRID}", qos.reliable(1))),
             pub_markers=LazyPublisher(self.create_publisher(MarkerArray, f"{self._tg}/{binding.name}/{BELIEF_WEDGES}", qos.reliable(1))) if self._markers_enabled else None,
             grid=self._new_grid(),
         )
         robot.sub = self.create_subscription(SoundDetection, f"{self._tg}/{detections(binding.name, self._frontend)}", functools.partial(self._cb_detection, robot), qos.reliable(50))
-        self.get_logger().info(f"hearing_belief: detections on {robot.sub.topic_name!r} -> {robot.pub_belief.topic_name!r}, robot frame {binding.base_frame!r}")
+        self.get_logger().info(f"hearing_belief: detections on {robot.sub.topic_name!r} -> {robot.pub_belief.publisher.topic_name!r}, robot frame {binding.base_frame!r}")
         return robot
 
     def _stop(self, robot: _Robot) -> None:
         self.destroy_subscription(robot.sub)
-        self.destroy_publisher(robot.pub_belief)
+        robot.pub_belief.close()
+        self.destroy_publisher(robot.pub_belief.publisher)
         if robot.pub_markers is not None:
             self.destroy_publisher(robot.pub_markers.publisher)
 
     def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"belief/{robot.binding.name}", topic=robot.pub_belief.topic_name, type="nav_msgs/msg/OccupancyGrid", period_s=1.1 / self._rate, hard=True)
+        return LockstepChannel(name=f"belief/{robot.binding.name}", topic=robot.pub_belief.publisher.topic_name, type="nav_msgs/msg/OccupancyGrid", period_s=1.1 / self._rate, hard=True)
 
     def _belief_config(self) -> BeliefConfig:
         values = {kind: param.value for kind, param in self._emission_db.items()}

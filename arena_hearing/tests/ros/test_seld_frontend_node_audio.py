@@ -138,8 +138,8 @@ class _Probe:
         self.detections: list = []
         self.beats: list = []
         self.node.create_subscription(SoundDetection, robot.pub.topic_name, self.detections.append, qos.reliable(50))
-        self.node.create_subscription(LockstepHeartbeat, robot.tick_pub.topic_name, self.beats.append, qos.reliable(100))
-        _spin_until(rclpy, [self.node], lambda: robot.pub.get_subscription_count() > 0 and robot.tick_pub.get_subscription_count() > 0)
+        self.node.create_subscription(LockstepHeartbeat, robot.tick_pub.publisher.topic_name, self.beats.append, qos.reliable(100))
+        _spin_until(rclpy, [self.node], lambda: robot.pub.get_subscription_count() > 0 and robot.tick_pub.publisher.get_subscription_count() > 0)
 
     def wait(self, predicate) -> None:
         import rclpy
@@ -234,7 +234,7 @@ def test_channel_declares_a_hard_heartbeat_at_the_label_frame_period(node) -> No
 
     robot = _bind(node)
     channel = node._channel(robot)
-    assert (channel.name, channel.topic, channel.type) == (f"hearing/{robot.name}", robot.tick_pub.topic_name, HEARTBEAT_TYPE)
+    assert (channel.name, channel.topic, channel.type) == (f"hearing/{robot.name}", robot.tick_pub.publisher.topic_name, HEARTBEAT_TYPE)
     assert channel.topic.endswith("/lockstep/hearing")
     assert channel.period_s == pytest.approx(node._fe.label_hop_len / node._fe.fs)
     assert channel.hard
@@ -276,6 +276,6 @@ def test_robot_leaving_the_fleet_releases_its_topics(node) -> None:
     assert list(node._robots) == [r1]
     publishers, subscriptions = list(node.publishers), list(node.subscriptions)
     assert r0.pub not in publishers
-    assert r0.tick_pub not in publishers
+    assert r0.tick_pub.publisher not in publishers
     assert r0.sub not in subscriptions
     assert r1.pub in publishers

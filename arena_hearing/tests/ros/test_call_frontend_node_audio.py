@@ -160,8 +160,8 @@ class _Probe:
         self.detections: list = []
         self.beats: list = []
         self.node.create_subscription(SoundDetection, robot.pub.topic_name, self.detections.append, qos.reliable(50))
-        self.node.create_subscription(LockstepHeartbeat, robot.tick_pub.topic_name, self.beats.append, qos.reliable(1000))
-        _spin_until(rclpy, [self.node], lambda: robot.pub.get_subscription_count() > 0 and robot.tick_pub.get_subscription_count() > 0)
+        self.node.create_subscription(LockstepHeartbeat, robot.tick_pub.publisher.topic_name, self.beats.append, qos.reliable(1000))
+        _spin_until(rclpy, [self.node], lambda: robot.pub.get_subscription_count() > 0 and robot.tick_pub.publisher.get_subscription_count() > 0)
 
     def wait(self, predicate) -> None:
         import rclpy
@@ -263,5 +263,5 @@ def test_channel_declares_a_hard_audio_heartbeat(call) -> None:
 
     channel = node._channel(robot)
 
-    assert (channel.name, channel.topic) == ("hearing/r0", robot.tick_pub.topic_name)
+    assert (channel.name, channel.topic) == ("hearing/r0", robot.tick_pub.publisher.topic_name)
     assert channel.hard

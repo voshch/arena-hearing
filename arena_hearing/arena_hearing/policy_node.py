@@ -31,7 +31,7 @@ import math
 import attrs
 import numpy as np
 import tf2_ros
-from arena_rclpy_mixins import ArenaMixinNode, qos
+from arena_rclpy_mixins import ArenaMixinNode, ClockEcho, qos
 from arena_rclpy_mixins.lazy import LazyPublisher
 from arena_rclpy_mixins.params import configure
 from arena_rclpy_mixins.transforms import ThreadedTransformListener
@@ -69,7 +69,7 @@ class _Robot:
     pub_state: Publisher
     pub_markers: LazyPublisher[MarkerArray]
     pub_filter_info: Publisher
-    pub_beat: Publisher
+    pub_beat: ClockEcho[LockstepHeartbeat]
     subs: list[Subscription] = attrs.Factory(list)
     belief: OccupancyGrid | None = None
     plan_xy: np.ndarray | None = None
@@ -125,7 +125,7 @@ class PolicyNode(ArenaMixinNode):
             pub_state=self.create_publisher(String, f"{scope}/{POLICY_STATE}", qos.latched()),
             pub_markers=LazyPublisher(self.create_publisher(MarkerArray, f"{scope}/{POLICY_MARKERS}", qos.reliable(1))),
             pub_filter_info=self.create_publisher(CostmapFilterInfo, f"{scope}/{COSTMAP_FILTER_INFO}", qos.latched()),
-            pub_beat=self.create_publisher(LockstepHeartbeat, f"{self._tg}/{policy_heartbeat(binding.name)}", qos.reliable(10)),
+            pub_beat=ClockEcho(self, self.create_publisher(LockstepHeartbeat, f"{self._tg}/{policy_heartbeat(binding.name)}", qos.reliable(10))),
         )
         robot.subs = [
             self.create_subscription(OccupancyGrid, f"{scope}/{BELIEF_GRID}", functools.partial(self._cb_belief, robot), qos.reliable(1)),
@@ -141,11 +141,12 @@ class PolicyNode(ArenaMixinNode):
     def _stop(self, robot: _Robot) -> None:
         for sub in robot.subs:
             self.destroy_subscription(sub)
-        for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info, robot.pub_beat):
+        robot.pub_beat.close()
+        for pub in (robot.pub_mask, robot.pub_state, robot.pub_markers.publisher, robot.pub_filter_info, robot.pub_beat.publisher):
             self.destroy_publisher(pub)
 
     def _channel(self, robot: _Robot) -> LockstepChannel:
-        return LockstepChannel(name=f"policy/{robot.binding.name}", topic=robot.pub_beat.topic_name, type=HEARTBEAT_TYPE, period_s=1.1 / self._rate, hard=True)
+        return LockstepChannel(name=f"policy/{robot.binding.name}", topic=robot.pub_beat.publisher.topic_name, type=HEARTBEAT_TYPE, period_s=1.1 / self._rate, hard=True)
 
     def _cb_map(self, msg: OccupancyGrid) -> None:
         self._map = msg

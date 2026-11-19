@@ -490,10 +490,10 @@ def test_robot_leaving_the_fleet_releases_its_topics(belief) -> None:
     node._robots._cb_fleet(_fleet(prefix, ("r1", "no_such_model")))
     assert list(node._robots) == [r1]
     publishers = list(node.publishers)
-    assert r0.pub_belief not in publishers
+    assert r0.pub_belief.publisher not in publishers
     assert r0.pub_markers.publisher not in publishers
     assert r0.sub not in list(node.subscriptions)
-    assert r1.pub_belief in publishers
+    assert r1.pub_belief.publisher in publishers
 
 
 def test_robot_without_markers_leaves_only_the_grid_publisher(belief) -> None:
@@ -503,7 +503,7 @@ def test_robot_without_markers_leaves_only_the_grid_publisher(belief) -> None:
     (robot,) = list(node._robots)
     assert robot.pub_markers is None
     node._robots._cb_fleet(_fleet(prefix))
-    assert robot.pub_belief not in list(node.publishers)
+    assert robot.pub_belief.publisher not in list(node.publishers)
 
 
 def test_channel_declares_a_hard_grid_heartbeat_at_the_publish_rate(belief) -> None:
@@ -511,7 +511,7 @@ def test_channel_declares_a_hard_grid_heartbeat_at_the_publish_rate(belief) -> N
     (robot,) = _bind(node, ("r0", "jackal"))
     channel = node._channel(robot)
     assert channel.name == "belief/r0"
-    assert channel.topic == robot.pub_belief.topic_name
+    assert channel.topic == robot.pub_belief.publisher.topic_name
     assert channel.topic.endswith("/r0/hearing/belief_grid")
     assert channel.type == "nav_msgs/msg/OccupancyGrid"
     assert channel.period_s == pytest.approx(1.1 / 4.0)
