@@ -154,15 +154,23 @@ async def _until(rig: Rig, predicate, what: str, timeout_s: float = STARTUP_S) -
         await asyncio.sleep(0.1)
 
 
-async def _later(delay_s: float, action) -> None:
-    await asyncio.sleep(delay_s)
-    action()
-
-
 async def _paint(rig: Rig, until: float) -> None:
     while time.monotonic() < until:
         rig.publishers["bus"].publish(_detection(rig, "bus"))
         await asyncio.sleep(0.2)
+
+
+async def _paint_during(rig: Rig, call: asyncio.Future) -> None:
+    while not call.done():
+        rig.publishers["bus"].publish(_detection(rig, "bus"))
+        await asyncio.sleep(0.2)
+
+
+async def _publish_once_watched(rig: Rig, frontend: str, baseline: int, call: asyncio.Future):
+    await _until(rig, lambda: call.done() or rig.publishers[frontend].get_subscription_count() > baseline, f"hearing_detections to subscribe to {frontend}")
+    msg = _detection(rig, frontend)
+    rig.publishers[frontend].publish(msg)
+    return msg
 
 
 def test_hearing_domain_is_served_from_its_entry_point():
@@ -176,12 +184,10 @@ def test_hearing_domain_is_served_from_its_entry_point():
 def test_detections_belief_and_policy_of_live_hearing_nodes(rig: Rig):
     async def scenario():
         await _until(rig, lambda: rig.publishers["bus"].get_subscription_count() >= 2, "hearing_belief and hearing_policy to bind r0")
-        srp = _detection(rig, "srp")
-        detections, _, _ = await asyncio.gather(
-            hearing.hearing_detections(window_s=3.0),
-            _paint(rig, time.monotonic() + 3.0),
-            _later(1.0, lambda: rig.publishers["srp"].publish(srp)),
-        )
+        srp_baseline = rig.publishers["srp"].get_subscription_count()
+        call = asyncio.ensure_future(hearing.hearing_detections(window_s=3.0))
+        srp, _ = await asyncio.gather(_publish_once_watched(rig, "srp", srp_baseline, call), _paint_during(rig, call))
+        detections = await call
         belief = None
         deadline = time.monotonic() + 15.0
         while time.monotonic() < deadline:
